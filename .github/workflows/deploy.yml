@@ -1,0 +1,67 @@
+# Reprocessa os .xlsx do repositório de dados e publica o app no GitHub Pages.
+#
+# Dispara em:
+#  - push neste repositório (mudanças no app);
+#  - agendamento diário (captura novos .xlsx no repositório de dados);
+#  - manualmente (aba Actions -> Run workflow);
+#  - repository_dispatch tipo "dados-atualizados" (opcional: dispare a partir
+#    do repositório de dados — ver INSTRUCOES_DEPLOY.md, seção 5).
+name: Build e deploy no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * *' # 06:00 América/São Paulo
+  workflow_dispatch:
+  repository_dispatch:
+    types: [dados-atualizados]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Processar .xlsx do repositório de dados
+        run: |
+          pip install openpyxl
+          python3 scripts/processar_dados.py   # baixa os .xlsx via API do GitHub
+
+      - name: Build do front-end
+        run: |
+          npm ci
+          # versiona o cache do service worker a cada deploy
+          sed -i "s/emendas-md-v1/emendas-md-${GITHUB_SHA::8}/" public/sw.js
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
