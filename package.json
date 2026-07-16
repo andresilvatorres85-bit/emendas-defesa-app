@@ -1,0 +1,22 @@
+{
+  "name": "emendas-defesa-ploa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Análise das emendas parlamentares apresentadas ao PLOA — Ministério da Defesa (Órgão 52000, Setor 13)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dados": "python3 scripts/processar_dados.py"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.61.1",
+    "vite": "^5.4.11"
+  }
+}
