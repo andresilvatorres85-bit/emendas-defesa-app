@@ -74,8 +74,11 @@ pipeline. Toda alteração deve ser validada contra a base real.
 import json
 import os
 import re
+import shutil
 import sys
+import time
 import unicodedata
+import urllib.error
 import urllib.request
 
 import openpyxl
@@ -245,16 +248,47 @@ def detectar_inconsistencias(registro):
 # ---------------------------------------------------------------------------
 # Leitura dos .xlsx
 # ---------------------------------------------------------------------------
+# Token do GitHub (fornecido automaticamente pelo Actions como GITHUB_TOKEN).
+# Autenticar eleva o limite de requisições da API de 60/h (anônimo, por IP —
+# facilmente estourado nos runners compartilhados) para 5.000/h.
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+
+
+def _abrir(url, tentativas=4):
+    """urlopen com User-Agent, token (quando houver) e retry com backoff em
+    caso de 403 (rate limit) ou erros transitórios."""
+    req = urllib.request.Request(url, headers={"User-Agent": "emendas-defesa-app-build"})
+    host = url.split("/")[2] if "//" in url else ""
+    if GITHUB_TOKEN and host.endswith(("github.com", "githubusercontent.com")):
+        req.add_header("Authorization", f"Bearer {GITHUB_TOKEN}")
+        req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    ultimo_erro = None
+    for i in range(tentativas):
+        try:
+            return urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            ultimo_erro = e
+            # 403/429 = rate limit/abuso; 5xx = transitório. Aguarda e tenta de novo.
+            if e.code in (403, 429) or 500 <= e.code < 600:
+                espera = 2 ** i * 5
+                print(f"  {e.code} em {url} — nova tentativa em {espera}s ({i+1}/{tentativas})")
+                time.sleep(espera)
+                continue
+            raise
+    raise ultimo_erro
+
+
 def listar_xlsx_github():
     url = f"https://api.github.com/repos/{REPO_DADOS}/contents/"
-    with urllib.request.urlopen(url) as r:
+    with _abrir(url) as r:
         itens = json.load(r)
     return [i["download_url"] for i in itens if i["name"].lower().endswith(".xlsx")]
 
 
 def baixar(url, destino):
     print(f"Baixando {url}")
-    urllib.request.urlretrieve(url, destino)
+    with _abrir(url) as r, open(destino, "wb") as f:
+        shutil.copyfileobj(r, f)
     return destino
 
 
