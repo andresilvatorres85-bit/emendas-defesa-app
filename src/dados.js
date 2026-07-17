@@ -135,14 +135,21 @@ export const C_MIL_A_NOME = {
   CMS: 'Comando Militar do Sul',
 }
 
+// UO do Exército (o C Mil A é uma estrutura do Exército, portanto o comparativo
+// por comando considera apenas estas UO): Comando do Exército e IMBEL.
+export const UO_EXERCITO = new Set(['52121', '52221'])
+
 // Comparativo por C Mil A: total impositivo RP6, RP7 e a soma (RP6+RP7) de
-// cada comando. Só entram comandos com algum valor impositivo (> 0), o que
-// naturalmente exclui "NÃO SE APLICA" (comissões, que são RP2/RP3).
+// cada comando, considerando SOMENTE as UO do Exército. Só entram comandos com
+// algum valor impositivo (> 0). Ordenado pela soma RP6+RP7 (maior -> menor); o
+// grid do gráfico preenche da esquerda p/ a direita e de cima p/ baixo, então
+// a ordem visual segue exatamente essa classificação.
 export function impositivasPorCMilA(registros) {
   const m = new Map()
   for (const r of registros) {
     const rp = String(r.rp)
     if (rp !== '6' && rp !== '7') continue
+    if (!UO_EXERCITO.has(String(r.uoCod))) continue
     const c = r.cmila || '—'
     if (!m.has(c)) m.set(c, { cmila: c, rp6: 0, rp7: 0 })
     const o = m.get(c)

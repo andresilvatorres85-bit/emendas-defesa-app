@@ -113,6 +113,7 @@ export default function App() {
             </div>
             <section className="painel-grafico">
               <h2>EMENDAS IMPOSITIVAS POR COMANDO MILITAR DE ÁREA</h2>
+              <p className="painel-sub">Considera apenas as UO do Exército (Comando do Exército e IMBEL)</p>
               <GraficoBarras dados={impCMilA} />
             </section>
           </>
