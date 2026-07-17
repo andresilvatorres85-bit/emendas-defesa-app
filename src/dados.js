@@ -97,22 +97,65 @@ export function valorPorRP(registros) {
 }
 
 // Gráfico "EMENDAS IMPOSITIVAS": apenas RP6 e RP7.
-//  - RP6 é segmentado por Autor (Tipo): DEPUTADO FEDERAL e SENADOR;
-//  - RP7 é segmentado por Autor (Tipo): BANCADA ESTADUAL.
-// Cada segmento carrega cor fixa própria (não reatribuída ao mudar os filtros).
-export const SEGMENTOS_IMPOSITIVAS = [
-  { chave: 'rp6-dep', rp: '6', autorTipo: 'DEPUTADO FEDERAL', rotulo: 'RP6 · Deputado Federal', rotuloCurto: 'Dep. Federal', cor: 'light-dark(#e87ba4, #d55181)' },
-  { chave: 'rp6-sen', rp: '6', autorTipo: 'SENADOR',          rotulo: 'RP6 · Senador',          rotuloCurto: 'Senador',      cor: 'light-dark(#4a3aa7, #9085e9)' },
-  { chave: 'rp7-ban', rp: '7', autorTipo: 'BANCADA ESTADUAL', rotulo: 'RP7 · Bancada Estadual', rotuloCurto: 'Bancada Est.', cor: 'light-dark(#eda100, #c98500)' },
+//  - RP6 é segmentado por Autor (Tipo): DEPUTADO FEDERAL e SENADOR (cores fixas);
+//  - RP7 é segmentado por Autor (nome da bancada), de forma dinâmica — uma
+//    fatia por autor presente nos registros filtrados.
+export const COR_RP6_DEP = 'light-dark(#e87ba4, #d55181)'
+export const COR_RP6_SEN = 'light-dark(#4a3aa7, #9085e9)'
+// Paleta para os autores de RP7 (evita as cores de RP6). Atribuída por ordem
+// alfabética do autor, garantindo cores estáveis para o mesmo conjunto.
+const PALETA_RP7 = [
+  'light-dark(#eda100, #c98500)', // âmbar
+  'light-dark(#1baf7a, #199e70)', // verde-azulado
+  'light-dark(#eb6834, #d95926)', // laranja
+  'light-dark(#2a78d6, #3987e5)', // azul
+  'light-dark(#e34948, #e66767)', // vermelho
+  'light-dark(#008300, #009a00)', // verde
 ]
 
+// Título em pt-BR: capitaliza palavras, mantém conectores minúsculos.
+const CONECTORES_BR = new Set(['de', 'do', 'da', 'dos', 'das', 'e'])
+function tituloBR(s) {
+  return String(s)
+    .toLocaleLowerCase('pt-BR')
+    .split(/\s+/)
+    .map((w, i) => (i > 0 && CONECTORES_BR.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+}
+
 export function valorImpositivas(registros) {
-  return SEGMENTOS_IMPOSITIVAS.map((s) => ({
-    ...s,
-    valor: registros
-      .filter((r) => String(r.rp) === s.rp && r.autorTipo === s.autorTipo)
-      .reduce((acc, r) => acc + r.valor, 0),
-  }))
+  const soma = (pred) => registros.filter(pred).reduce((acc, r) => acc + r.valor, 0)
+
+  // RP6 — segmentos fixos por Autor (Tipo).
+  const fatias = [
+    { chave: 'rp6-dep', rotulo: 'RP6 · Deputado Federal', rotuloCurto: 'Dep. Federal', cor: COR_RP6_DEP,
+      valor: soma((r) => String(r.rp) === '6' && r.autorTipo === 'DEPUTADO FEDERAL') },
+    { chave: 'rp6-sen', rotulo: 'RP6 · Senador', rotuloCurto: 'Senador', cor: COR_RP6_SEN,
+      valor: soma((r) => String(r.rp) === '6' && r.autorTipo === 'SENADOR') },
+  ]
+
+  // RP7 — segmentos dinâmicos por Autor (nome da bancada).
+  const porAutor = new Map()
+  for (const r of registros) {
+    if (String(r.rp) !== '7') continue
+    porAutor.set(r.autor, (porAutor.get(r.autor) || 0) + r.valor)
+  }
+  const autores = [...porAutor.keys()].sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
+  autores.forEach((autor, i) => {
+    const nome = tituloBR(autor)
+    // Rótulo externo enxuto: remove o prefixo "Bancada de/do/da ..." (a legenda
+    // mantém o nome completo). Ex.: "Bancada de Pernambuco" -> "Pernambuco".
+    const curto = nome.replace(/^Bancada\s+(?:de|do|da|dos|das)\s+/i, '') || nome
+    fatias.push({
+      chave: `rp7-${autor}`,
+      rotulo: `RP7 · ${nome}`,
+      rotuloCurto: curto,
+      cor: PALETA_RP7[i % PALETA_RP7.length],
+      valor: porAutor.get(autor),
+    })
+  })
+
+  return fatias
 }
 
 // ---------------------------------------------------------------------------
