@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
-  resumo, valorPorRP, FILTROS, fmtBRL, fmtInt,
+  resumo, valorPorRP, valorImpositivas, FILTROS, fmtBRL, fmtInt,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
 import MultiSelect from './components/MultiSelect.jsx'
@@ -29,6 +29,8 @@ export default function App() {
   const gruposIncons = useMemo(() => grupos.filter((g) => g.inconsistencias.length > 0), [grupos])
   const stats = useMemo(() => resumo(filtrados), [filtrados])
   const porRP = useMemo(() => valorPorRP(filtrados), [filtrados])
+  const impositivas = useMemo(() => valorImpositivas(filtrados), [filtrados])
+  const totalImpositivas = useMemo(() => impositivas.reduce((s, d) => s + d.valor, 0), [impositivas])
   const temFiltro = FILTROS.some((f) => filtros[f.id]?.size > 0)
 
   if (erro) {
@@ -97,10 +99,16 @@ export default function App() {
                 <p className="card-valor">{fmtInt(stats.qtdParlamentares)}</p>
               </div>
             </div>
-            <section className="painel-grafico">
-              <h2>EMENDAS PARLAMENTARES AO PLOA</h2>
-              <GraficoPizza dados={porRP} total={stats.valorTotal} />
-            </section>
+            <div className="paineis-graficos">
+              <section className="painel-grafico">
+                <h2>EMENDAS PARLAMENTARES AO PLOA</h2>
+                <GraficoPizza dados={porRP} total={stats.valorTotal} />
+              </section>
+              <section className="painel-grafico">
+                <h2>EMENDAS IMPOSITIVAS</h2>
+                <GraficoPizza dados={impositivas} total={totalImpositivas} />
+              </section>
+            </div>
           </>
         )}
 

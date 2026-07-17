@@ -93,7 +93,26 @@ export function valorPorRP(registros) {
   for (const r of registros) m.set(r.rp, (m.get(r.rp) || 0) + r.valor)
   return [...m.entries()]
     .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
-    .map(([rp, valor]) => ({ rp, rotulo: RP_LABEL(rp), valor }))
+    .map(([rp, valor]) => ({ rp, chave: `rp${rp}`, rotulo: RP_LABEL(rp), valor }))
+}
+
+// Gráfico "EMENDAS IMPOSITIVAS": apenas RP6 e RP7.
+//  - RP6 é segmentado por Autor (Tipo): DEPUTADO FEDERAL e SENADOR;
+//  - RP7 é segmentado por Autor (Tipo): BANCADA ESTADUAL.
+// Cada segmento carrega cor fixa própria (não reatribuída ao mudar os filtros).
+export const SEGMENTOS_IMPOSITIVAS = [
+  { chave: 'rp6-dep', rp: '6', autorTipo: 'DEPUTADO FEDERAL', rotulo: 'RP6 · Deputado Federal', rotuloCurto: 'Dep. Federal', cor: 'light-dark(#e87ba4, #d55181)' },
+  { chave: 'rp6-sen', rp: '6', autorTipo: 'SENADOR',          rotulo: 'RP6 · Senador',          rotuloCurto: 'Senador',      cor: 'light-dark(#4a3aa7, #9085e9)' },
+  { chave: 'rp7-ban', rp: '7', autorTipo: 'BANCADA ESTADUAL', rotulo: 'RP7 · Bancada Estadual', rotuloCurto: 'Bancada Est.', cor: 'light-dark(#eda100, #c98500)' },
+]
+
+export function valorImpositivas(registros) {
+  return SEGMENTOS_IMPOSITIVAS.map((s) => ({
+    ...s,
+    valor: registros
+      .filter((r) => String(r.rp) === s.rp && r.autorTipo === s.autorTipo)
+      .reduce((acc, r) => acc + r.valor, 0),
+  }))
 }
 
 // ---------------------------------------------------------------------------

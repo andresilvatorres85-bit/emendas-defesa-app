@@ -115,10 +115,14 @@ body {
 }
 .card-titulo { margin: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--tinta-fraca); }
 .card-valor { margin: 0.25rem 0 0; font-size: 1.6rem; font-weight: 700; }
+.paineis-graficos {
+  margin-top: 0.9rem; display: grid; grid-template-columns: 1fr; gap: 0.9rem;
+}
 .painel-grafico {
-  margin-top: 0.9rem; background: var(--superficie);
+  background: var(--superficie);
   border: 1px solid var(--borda); border-radius: 12px; padding: 1rem;
 }
+.paineis-graficos .painel-grafico { margin-top: 0; }
 .painel-grafico h2 {
   margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700;
   letter-spacing: 0.05em; text-align: center; color: var(--tinta-2);
@@ -192,4 +196,7 @@ body {
 @media (min-width: 1024px) {
   .grade { grid-template-columns: repeat(3, 1fr); }
   .card-valor { font-size: 1.9rem; }
+  /* dois gráficos lado a lado; dentro de cada um, svg acima da legenda */
+  .paineis-graficos { grid-template-columns: 1fr 1fr; }
+  .paineis-graficos .pizza { flex-direction: column; }
 }
