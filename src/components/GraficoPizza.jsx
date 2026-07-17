@@ -50,16 +50,16 @@ export default function GraficoPizza({ dados, total }) {
 
   const fatias = useMemo(() => {
     let acc = 0
-    const soma = dados.reduce((s, d) => s + d.valor, 0) || 1
-    return dados
-      .filter((d) => d.valor > 0)
-      .map((d) => {
-        const a0 = (acc / soma) * 2 * Math.PI
-        acc += d.valor
-        const a1 = (acc / soma) * 2 * Math.PI
-        const meio = (a0 + a1) / 2
-        return { ...d, a0, a1, meio, pct: (d.valor / soma) * 100 }
-      })
+    const positivos = dados.filter((d) => d.valor > 0)
+    const soma = positivos.reduce((s, d) => s + d.valor, 0) || 1
+    return positivos.map((d) => {
+      const a0 = (acc / soma) * 2 * Math.PI
+      acc += d.valor
+      const a1 = (acc / soma) * 2 * Math.PI
+      const meio = (a0 + a1) / 2
+      // `k` = identidade estável da fatia (chave própria ou o RP); `cor` fixa.
+      return { ...d, k: d.chave ?? d.rp, cor: d.cor ?? corDoRP(d.rp), a0, a1, meio, pct: (d.valor / soma) * 100 }
+    })
   }, [dados])
 
   // Rótulos externos com linha-guia; anticolisão simples por lado.
@@ -89,17 +89,17 @@ export default function GraficoPizza({ dados, total }) {
 
   return (
     <figure className="pizza" aria-label="Gráfico de pizza: valor solicitado por identificador de resultado primário (RP)">
-      <svg viewBox="-55 0 430 300" role="img">
+      <svg viewBox="-70 0 500 300" role="img">
         {fatias.map((f) => (
           <path
-            key={f.rp}
+            key={f.k}
             d={arco(f.a0, f.a1)}
             fillRule="evenodd"
-            fill={corDoRP(f.rp)}
+            fill={f.cor}
             stroke="var(--superficie)"
             strokeWidth="2"
-            opacity={hover === null || hover === f.rp ? 1 : 0.35}
-            onMouseEnter={() => setHover(f.rp)}
+            opacity={hover === null || hover === f.k ? 1 : 0.35}
+            onMouseEnter={() => setHover(f.k)}
             onMouseLeave={() => setHover(null)}
           >
             <title>{`${f.rotulo}: ${fmtMilhoes(f.valor)} (${fmtPct(f.pct)})`}</title>
@@ -108,7 +108,7 @@ export default function GraficoPizza({ dados, total }) {
         {rotulos.map((f) => {
           const tx = f.lado === 1 ? f.ax + 14 : f.ax - 14
           return (
-            <g key={f.rp} className="pizza-rotulo" opacity={hover === null || hover === f.rp ? 1 : 0.35}>
+            <g key={f.k} className="pizza-rotulo" opacity={hover === null || hover === f.k ? 1 : 0.35}>
               <polyline
                 points={`${f.ax},${f.ay} ${tx - f.lado * 4},${f.y} ${tx},${f.y}`}
                 fill="none"
@@ -116,7 +116,7 @@ export default function GraficoPizza({ dados, total }) {
                 strokeWidth="1"
               />
               <text x={tx + f.lado * 3} y={f.y + 4} textAnchor={f.lado === 1 ? 'start' : 'end'}>
-                {f.rotulo} ({fmtPct(f.pct)})
+                {(f.rotuloCurto ?? f.rotulo)} ({fmtPct(f.pct)})
               </text>
             </g>
           )
@@ -131,12 +131,12 @@ export default function GraficoPizza({ dados, total }) {
       <figcaption className="pizza-legenda">
         {fatias.map((f) => (
           <div
-            key={f.rp}
+            key={f.k}
             className="legenda-item"
-            onMouseEnter={() => setHover(f.rp)}
+            onMouseEnter={() => setHover(f.k)}
             onMouseLeave={() => setHover(null)}
           >
-            <span className="legenda-cor" style={{ background: corDoRP(f.rp) }} aria-hidden />
+            <span className="legenda-cor" style={{ background: f.cor }} aria-hidden />
             <span className="legenda-nome">{f.rotulo}</span>
             <span className="legenda-valor">
               {fmtMilhoes(f.valor)} ({fmtPct(f.pct)})
