@@ -162,6 +162,27 @@ export function impositivasPorCMilA(registros) {
     .sort((a, b) => b.total - a.total)
 }
 
+// Ranking dos autores por valor total de emendas. Considera SOMENTE
+// Autor (Tipo) DEPUTADO FEDERAL e SENADOR (exclui comissões e bancadas);
+// prefixa o nome com "Dep"/"Sen". Devolve os `n` maiores (padrão 10).
+const AUTOR_TIPO_SIGLA = { 'DEPUTADO FEDERAL': 'Dep', SENADOR: 'Sen' }
+
+export function topAutores(registros, n = 10) {
+  const m = new Map()
+  for (const r of registros) {
+    const sigla = AUTOR_TIPO_SIGLA[r.autorTipo]
+    if (!sigla) continue
+    if (!m.has(r.autor)) {
+      m.set(r.autor, { autor: r.autor, sigla, tipo: r.autorTipo, uf: r.autorUF, valor: 0 })
+    }
+    m.get(r.autor).valor += r.valor
+  }
+  return [...m.values()]
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, n)
+    .map((o) => ({ ...o, nome: tituloBR(o.autor) }))
+}
+
 export function valorImpositivas(registros) {
   const soma = (pred) => registros.filter(pred).reduce((acc, r) => acc + r.valor, 0)
 

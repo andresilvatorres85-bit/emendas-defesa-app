@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
-  resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, FILTROS, fmtBRL, fmtInt,
+  resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, topAutores, FILTROS, fmtBRL, fmtInt,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
 import GraficoBarras from './components/GraficoBarras.jsx'
+import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
 
 const ABAS = [
@@ -33,6 +34,7 @@ export default function App() {
   const impositivas = useMemo(() => valorImpositivas(filtrados), [filtrados])
   const totalImpositivas = useMemo(() => impositivas.reduce((s, d) => s + d.valor, 0), [impositivas])
   const impCMilA = useMemo(() => impositivasPorCMilA(filtrados), [filtrados])
+  const autoresTop = useMemo(() => topAutores(filtrados, 10), [filtrados])
   const temFiltro = FILTROS.some((f) => filtros[f.id]?.size > 0)
 
   if (erro) {
@@ -115,6 +117,11 @@ export default function App() {
               <h2>EMENDAS IMPOSITIVAS POR COMANDO MILITAR DE ÁREA</h2>
               <p className="painel-sub">Considera apenas as UO do Exército (Comando do Exército e IMBEL)</p>
               <GraficoBarras dados={impCMilA} />
+            </section>
+            <section className="painel-grafico">
+              <h2>10 MAIORES AUTORES POR VALOR EM EMENDAS</h2>
+              <p className="painel-sub">Soma de todas as emendas por autor · apenas Deputados Federais e Senadores</p>
+              <GraficoBarrasSimples dados={autoresTop} />
             </section>
           </>
         )}

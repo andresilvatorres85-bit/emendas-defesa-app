@@ -167,6 +167,20 @@ body {
 }
 .barras-legenda-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 600; color: var(--tinta-2); cursor: default; }
 
+/* ranking horizontal: 10 maiores autores */
+.ranking { margin: 0; }
+.ranking-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+.ranking-item { display: grid; gap: 0.3rem; transition: opacity 0.12s; }
+.ranking-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; }
+.ranking-nome { display: flex; align-items: baseline; gap: 0.35rem; min-width: 0; font-size: 0.82rem; }
+.ranking-pos { color: var(--tinta-fraca); font-weight: 700; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.ranking-sigla { font-weight: 700; font-size: 0.72rem; flex: none; }
+.ranking-autor { font-weight: 600; color: var(--tinta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-uf { color: var(--tinta-fraca); font-size: 0.72rem; flex: none; }
+.ranking-valor { font-size: 0.8rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--tinta-2); flex: none; }
+.ranking-trilho { background: light-dark(#eef0f2, #26282c); border-radius: 4px; height: 12px; overflow: hidden; }
+.ranking-fill { display: block; height: 100%; border-radius: 4px; min-width: 2px; transition: width 0.3s; }
+
 /* grade de cartões */
 .grade { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
 .cartao {
