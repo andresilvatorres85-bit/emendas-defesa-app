@@ -89,7 +89,7 @@ export default function GraficoPizza({ dados, total }) {
 
   return (
     <figure className="pizza" aria-label="Gráfico de pizza: valor solicitado por identificador de resultado primário (RP)">
-      <svg viewBox="-70 0 500 300" role="img">
+      <svg viewBox="-80 0 500 300" role="img">
         {fatias.map((f) => (
           <path
             key={f.k}
