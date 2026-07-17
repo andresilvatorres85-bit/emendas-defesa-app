@@ -41,6 +41,8 @@ jobs:
           node-version: '22'
 
       - name: Processar .xlsx do repositório de dados
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install openpyxl
           python3 scripts/processar_dados.py   # baixa os .xlsx via API do GitHub
