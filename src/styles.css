@@ -119,7 +119,7 @@ body {
   margin-top: 0.9rem; display: grid; grid-template-columns: 1fr; gap: 0.9rem;
 }
 .painel-grafico {
-  background: var(--superficie);
+  margin-top: 0.9rem; background: var(--superficie);
   border: 1px solid var(--borda); border-radius: 12px; padding: 1rem;
 }
 .paineis-graficos .painel-grafico { margin-top: 0; }
@@ -139,6 +139,29 @@ body {
 .legenda-nome { font-weight: 600; min-width: 2.8rem; }
 .legenda-valor { color: var(--tinta-2); margin-left: auto; font-variant-numeric: tabular-nums; }
 .grafico-vazio { color: var(--tinta-2); text-align: center; }
+
+/* gráfico de barras: comparativo por C Mil A */
+.barras { margin: 0; }
+.barras-grupos { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+.barras-grupo-cab { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; margin-bottom: 0.35rem; }
+.barras-sigla { font-weight: 700; font-size: 0.85rem; color: var(--tinta); }
+.barras-nome { font-size: 0.72rem; color: var(--tinta-fraca); }
+.barras-linha {
+  display: grid; grid-template-columns: 3.6rem 1fr auto; align-items: center;
+  gap: 0.5rem; padding: 0.1rem 0; transition: opacity 0.12s;
+}
+.barras-rotulo { font-size: 0.72rem; font-weight: 600; color: var(--tinta-2); }
+.barras-trilho {
+  background: light-dark(#eef0f2, #26282c); border-radius: 4px;
+  height: 14px; overflow: hidden;
+}
+.barras-fill { display: block; height: 100%; border-radius: 4px; min-width: 2px; transition: width 0.3s; }
+.barras-valor { font-size: 0.72rem; color: var(--tinta-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.barras-legenda {
+  display: flex; flex-wrap: wrap; gap: 0.9rem; justify-content: center;
+  margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--hairline);
+}
+.barras-legenda-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 600; color: var(--tinta-2); cursor: default; }
 
 /* grade de cartões */
 .grade { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
@@ -199,4 +222,6 @@ body {
   /* dois gráficos lado a lado; dentro de cada um, svg acima da legenda */
   .paineis-graficos { grid-template-columns: 1fr 1fr; }
   .paineis-graficos .pizza { flex-direction: column; }
+  /* comparativo por C Mil A em duas colunas */
+  .barras-grupos { grid-template-columns: 1fr 1fr; gap: 0.9rem 1.8rem; }
 }

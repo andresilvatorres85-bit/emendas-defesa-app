@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
-  resumo, valorPorRP, valorImpositivas, FILTROS, fmtBRL, fmtInt,
+  resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, FILTROS, fmtBRL, fmtInt,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
+import GraficoBarras from './components/GraficoBarras.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
 
 const ABAS = [
@@ -31,6 +32,7 @@ export default function App() {
   const porRP = useMemo(() => valorPorRP(filtrados), [filtrados])
   const impositivas = useMemo(() => valorImpositivas(filtrados), [filtrados])
   const totalImpositivas = useMemo(() => impositivas.reduce((s, d) => s + d.valor, 0), [impositivas])
+  const impCMilA = useMemo(() => impositivasPorCMilA(filtrados), [filtrados])
   const temFiltro = FILTROS.some((f) => filtros[f.id]?.size > 0)
 
   if (erro) {
@@ -109,6 +111,10 @@ export default function App() {
                 <GraficoPizza dados={impositivas} total={totalImpositivas} />
               </section>
             </div>
+            <section className="painel-grafico">
+              <h2>EMENDAS IMPOSITIVAS POR COMANDO MILITAR DE ÁREA</h2>
+              <GraficoBarras dados={impCMilA} />
+            </section>
           </>
         )}
 

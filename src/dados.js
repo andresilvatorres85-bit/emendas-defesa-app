@@ -123,6 +123,38 @@ function tituloBR(s) {
     .join(' ')
 }
 
+// Nomes por extenso dos Comandos Militares de Área.
+export const C_MIL_A_NOME = {
+  CMA: 'Comando Militar da Amazônia',
+  CMAO: 'Comando Militar da Amazônia Oriental',
+  CMNE: 'Comando Militar do Nordeste',
+  CMO: 'Comando Militar do Oeste',
+  CMP: 'Comando Militar do Planalto',
+  CML: 'Comando Militar do Leste',
+  CMSE: 'Comando Militar do Sudeste',
+  CMS: 'Comando Militar do Sul',
+}
+
+// Comparativo por C Mil A: total impositivo RP6, RP7 e a soma (RP6+RP7) de
+// cada comando. Só entram comandos com algum valor impositivo (> 0), o que
+// naturalmente exclui "NÃO SE APLICA" (comissões, que são RP2/RP3).
+export function impositivasPorCMilA(registros) {
+  const m = new Map()
+  for (const r of registros) {
+    const rp = String(r.rp)
+    if (rp !== '6' && rp !== '7') continue
+    const c = r.cmila || '—'
+    if (!m.has(c)) m.set(c, { cmila: c, rp6: 0, rp7: 0 })
+    const o = m.get(c)
+    if (rp === '6') o.rp6 += r.valor
+    else o.rp7 += r.valor
+  }
+  return [...m.values()]
+    .map((o) => ({ ...o, total: o.rp6 + o.rp7, nome: C_MIL_A_NOME[o.cmila] || o.cmila }))
+    .filter((o) => o.total > 0)
+    .sort((a, b) => b.total - a.total)
+}
+
 export function valorImpositivas(registros) {
   const soma = (pred) => registros.filter(pred).reduce((acc, r) => acc + r.valor, 0)
 
