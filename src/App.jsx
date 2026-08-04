@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
-  resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, topAutores, FILTROS, fmtBRL, fmtInt,
+  resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, topAutores, valorPorPartido,
+  FILTROS, fmtBRL, fmtInt,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
 import GraficoBarras from './components/GraficoBarras.jsx'
 import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
+import GraficoPartidos from './components/GraficoPartidos.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
 
 const ABAS = [
@@ -35,6 +37,7 @@ export default function App() {
   const totalImpositivas = useMemo(() => impositivas.reduce((s, d) => s + d.valor, 0), [impositivas])
   const impCMilA = useMemo(() => impositivasPorCMilA(filtrados), [filtrados])
   const autoresTop = useMemo(() => topAutores(filtrados, 10), [filtrados])
+  const partidos = useMemo(() => valorPorPartido(filtrados), [filtrados])
   const temFiltro = FILTROS.some((f) => filtros[f.id]?.size > 0)
 
   if (erro) {
@@ -122,6 +125,11 @@ export default function App() {
               <h2>10 MAIORES AUTORES POR VALOR EM EMENDAS</h2>
               <p className="painel-sub">Soma de todas as emendas por autor · apenas Deputados Federais e Senadores</p>
               <GraficoBarrasSimples dados={autoresTop} />
+            </section>
+            <section className="painel-grafico">
+              <h2>EMENDAS POR PARTIDO</h2>
+              <p className="painel-sub">Valor total e quantidade de emendas por partido · exclui comissões/bancadas (sem partido)</p>
+              <GraficoPartidos dados={partidos} />
             </section>
           </>
         )}

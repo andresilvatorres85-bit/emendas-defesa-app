@@ -7,9 +7,27 @@
 
 export const RP_LABEL = (cod) => (cod ? `RP${cod}` : '—')
 
-// Definição dos 10 filtros, na ordem exigida pela especificação.
+// Órgão consolidado por UO (Cod): agrupa todas as UO de cada Força/MD.
+// Permite filtrar os dados consolidados por Exército, Aeronáutica, Marinha e
+// Ministério da Defesa (órgãos conjuntos: Adm. Direta e Fundo do HFA).
+export const UO_ORGAO = {
+  '52121': 'EXÉRCITO',
+  '52221': 'EXÉRCITO',
+  '52111': 'AERONÁUTICA',
+  '52911': 'AERONÁUTICA',
+  '52131': 'MARINHA',
+  '52931': 'MARINHA',
+  '52932': 'MARINHA',
+  '52133': 'MARINHA',
+  '52101': 'MINISTÉRIO DA DEFESA',
+  '52902': 'MINISTÉRIO DA DEFESA',
+}
+export const orgaoDeUO = (uoCod) => UO_ORGAO[String(uoCod)] || 'MINISTÉRIO DA DEFESA'
+
+// Definição dos filtros, na ordem de exibição.
 // `campo` é a chave do registro no dados.json; `rotulo` é o texto exibido.
 export const FILTROS = [
+  { id: 'orgao',     campo: 'orgao',      rotulo: 'Órgão' },
   { id: 'uo',        campo: 'uo',         rotulo: 'UO' },
   { id: 'uocod',     campo: 'uoCod',      rotulo: 'UO (Cod)' },
   { id: 'rp',        campo: 'rp',         rotulo: 'RP', formatar: RP_LABEL },
@@ -25,7 +43,10 @@ export const FILTROS = [
 export async function carregarDados() {
   const resp = await fetch('./dados.json')
   if (!resp.ok) throw new Error(`Falha ao carregar dados (${resp.status})`)
-  return resp.json()
+  const dados = await resp.json()
+  // Deriva o campo "orgao" (consolidação por Força/MD) a partir da UO (Cod).
+  for (const r of dados.registros) r.orgao = orgaoDeUO(r.uoCod)
+  return dados
 }
 
 // Aplica todos os filtros a um conjunto de registros.
@@ -181,6 +202,24 @@ export function topAutores(registros, n = 10) {
     .sort((a, b) => b.valor - a.valor)
     .slice(0, n)
     .map((o) => ({ ...o, nome: tituloBR(o.autor) }))
+}
+
+// Valor total e quantidade de emendas (distintas) por Partido. Exclui os
+// registros sem partido (comissões e bancadas — "S/PARTIDO"/vazio), que não
+// representam um partido e distorceriam a escala. Ordenado por valor (desc).
+export function valorPorPartido(registros) {
+  const m = new Map()
+  for (const r of registros) {
+    const p = (r.partido || '').trim()
+    if (!p || p === 'S/PARTIDO') continue
+    if (!m.has(p)) m.set(p, { partido: p, valor: 0, emendas: new Set() })
+    const o = m.get(p)
+    o.valor += r.valor
+    o.emendas.add(r.emenda)
+  }
+  return [...m.values()]
+    .map((o) => ({ partido: o.partido, valor: o.valor, qtd: o.emendas.size }))
+    .sort((a, b) => b.valor - a.valor)
 }
 
 export function valorImpositivas(registros) {
