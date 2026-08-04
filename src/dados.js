@@ -100,6 +100,116 @@ export function agruparPorEmenda(registros) {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Aba "Inconsistências"
+// ---------------------------------------------------------------------------
+// Cada registro pode trazer `inconsistencias`: lista de objetos gerados pelo
+// pipeline (scripts/processar_dados.py, Regra 2), no formato
+//   { tipo, gravidade, rotulo, descricao, evidencia, uoSugerida, revisado }
+// Duas regras independentes — um registro pode acumular as duas:
+//   modalidade        : "Mod. Aplic. (Cod)" != 90 (dado objetivo)
+//   uo_justificativa  : a Força citada no texto não corresponde à UO da emenda
+export const INCONS_TIPOS = [
+  {
+    id: 'modalidade',
+    rotulo: 'Mod. Aplic. ≠ 90',
+    descricao:
+      'As emendas do Ministério da Defesa são executadas em Aplicação Direta (código 90). '
+      + 'Qualquer outro código — 99 (a definir), 91 (operação entre órgãos) etc. — é sinalizado.',
+  },
+  {
+    id: 'uo_justificativa',
+    rotulo: 'UO × Justificativa',
+    descricao:
+      'Cruzamento do texto da emenda (Ação, Subtítulo e Justificativa) com a UO de destino: '
+      + 'sinaliza quando a organização militar descrita pertence a uma Força diferente da UO.',
+  },
+]
+
+export const INCONS_TIPO_ROTULO = Object.fromEntries(INCONS_TIPOS.map((t) => [t.id, t.rotulo]))
+
+export const GRAVIDADES = [
+  { id: 'alta', rotulo: 'Confirmada', descricao: 'Divergência objetiva ou já revisada caso a caso.' },
+  { id: 'media', rotulo: 'A verificar', descricao: 'Indício que depende de confirmação junto à UO.' },
+]
+export const GRAVIDADE_ROTULO = Object.fromEntries(GRAVIDADES.map((g) => [g.id, g.rotulo]))
+
+// Registros com pelo menos uma inconsistência, opcionalmente restritos a um
+// tipo e/ou a uma gravidade (sub-filtros da aba, estado local do componente).
+export function registrosInconsistentes(registros, { tipo = null, gravidade = null } = {}) {
+  return registros
+    .map((r) => {
+      const alertas = (r.inconsistencias || []).filter(
+        (i) => (!tipo || i.tipo === tipo) && (!gravidade || i.gravidade === gravidade)
+      )
+      return alertas.length ? { ...r, alertas } : null
+    })
+    .filter(Boolean)
+}
+
+// Agrupa por emenda para a listagem em cartões. Só entram os itens (linhas)
+// que apresentam inconsistência — uma emenda pode ter linhas corretas e
+// linhas problemáticas, e a aba trata do que está errado.
+export function agruparInconsistencias(registros) {
+  const grupos = new Map()
+  for (const r of registros) {
+    if (!grupos.has(r.emenda)) grupos.set(r.emenda, [])
+    grupos.get(r.emenda).push(r)
+  }
+  return [...grupos.entries()]
+    .map(([emenda, itens]) => {
+      const r0 = itens[0]
+      const alertas = itens.flatMap((i) => i.alertas)
+      const tipos = [...new Set(alertas.map((a) => a.tipo))]
+      return {
+        emenda,
+        autor: r0.autor,
+        partido: r0.partido,
+        autorUF: r0.autorUF,
+        uo: r0.uo,
+        uoCod: r0.uoCod,
+        orgao: r0.orgao,
+        rps: [...new Set(itens.map((i) => i.rp))].sort(),
+        valor: itens.reduce((s, i) => s + i.valor, 0),
+        gravidade: alertas.some((a) => a.gravidade === 'alta') ? 'alta' : 'media',
+        tipos,
+        alertas,
+        itens,
+      }
+    })
+    .sort((a, b) => (a.gravidade === b.gravidade ? b.valor - a.valor : a.gravidade === 'alta' ? -1 : 1))
+}
+
+// Números do painel da aba: totais, quebra por tipo, por gravidade e por UO.
+export function resumoInconsistencias(registros) {
+  const comAlerta = registrosInconsistentes(registros)
+  const porTipo = INCONS_TIPOS.map((t) => {
+    const itens = comAlerta.filter((r) => r.alertas.some((a) => a.tipo === t.id))
+    return { ...t, qtd: itens.length, valor: itens.reduce((s, r) => s + r.valor, 0) }
+  })
+  const porGravidade = GRAVIDADES.map((g) => {
+    const itens = comAlerta.filter((r) => r.alertas.some((a) => a.gravidade === g.id))
+    return { ...g, qtd: itens.length, valor: itens.reduce((s, r) => s + r.valor, 0) }
+  })
+  const uos = new Map()
+  for (const r of comAlerta) {
+    const k = `${r.uoCod} — ${r.uo}`
+    if (!uos.has(k)) uos.set(k, { chave: k, uoCod: r.uoCod, uo: r.uo, qtd: 0, valor: 0 })
+    const o = uos.get(k)
+    o.qtd += 1
+    o.valor += r.valor
+  }
+  return {
+    qtdRegistros: comAlerta.length,
+    qtdEmendas: new Set(comAlerta.map((r) => r.emenda)).size,
+    valor: comAlerta.reduce((s, r) => s + r.valor, 0),
+    baseRegistros: registros.length,
+    porTipo,
+    porGravidade,
+    porUO: [...uos.values()].sort((a, b) => b.qtd - a.qtd || b.valor - a.valor),
+  }
+}
+
 // Agregações do dashboard.
 export function resumo(registros) {
   return {

@@ -11,6 +11,7 @@ import GraficoBarras from './components/GraficoBarras.jsx'
 import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
 import GraficoPartidos from './components/GraficoPartidos.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
+import AbaInconsistencias from './components/AbaInconsistencias.jsx'
 
 const ABAS = [
   { id: 'dashboard', rotulo: 'Dashboard' },
@@ -152,31 +153,11 @@ export default function App() {
         )}
 
         {aba === 'inconsistencias' && (
-          <section aria-label="Inconsistências">
-            <p className="contagem">{fmtInt(gruposIncons.length)} emenda(s) com inconsistência</p>
-            <div className="grade">
-              {gruposIncons.map((g) => (
-                <CartaoEmenda
-                  key={g.emenda}
-                  grupo={g}
-                  aberto={detalhe === g.emenda}
-                  onToggle={() => abrirDetalhe(g.emenda)}
-                  alerta
-                />
-              ))}
-            </div>
-            {gruposIncons.length === 0 && (
-              <div className="vazio">
-                <p><strong>Nenhuma inconsistência detectada</strong> para os filtros aplicados.</p>
-                <p>
-                  Regra: uma emenda é marcada como inconsistente quando a Organização Militar
-                  citada na justificativa não pertence à UO da emenda <em>e</em> a Modalidade de
-                  Aplicação é diferente de 90. A checagem usa o CNPJ e padrões de nome de OM
-                  citados no texto, comparados à família (Força) da UO.
-                </p>
-              </div>
-            )}
-          </section>
+          <AbaInconsistencias
+            registros={filtrados}
+            detalhe={detalhe}
+            abrirDetalhe={abrirDetalhe}
+          />
         )}
       </main>
 

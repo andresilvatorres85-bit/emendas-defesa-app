@@ -16,6 +16,11 @@
   --alerta-borda: light-dark(#ec835a, #b45a38);
   --alerta-texto: light-dark(#9a3412, #f0a583);
   --acento: light-dark(#2a78d6, #3987e5);
+  /* gravidade "a verificar": âmbar, um degrau abaixo do alerta vermelho */
+  --aviso-fundo: light-dark(#fdf8e7, #2a2413);
+  --aviso-borda: light-dark(#d9a521, #8f7018);
+  --aviso-texto: light-dark(#8a6100, #e8c46a);
+  --marca-fundo: light-dark(#ffe9a8, #6b5510);
 }
 
 * { box-sizing: border-box; }
@@ -38,8 +43,12 @@ body {
 }
 .cabecalho h1 { margin: 0; font-size: 1.05rem; line-height: 1.3; }
 .cabecalho-texto p { margin: 0.2rem 0 0.7rem; font-size: 0.72rem; opacity: 0.85; }
-.abas { display: flex; gap: 0.25rem; }
+/* com o contador de inconsistências a fila de abas pode passar da largura do
+   celular: rola na horizontal em vez de empurrar a página inteira. */
+.abas { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: none; }
+.abas::-webkit-scrollbar { display: none; }
 .aba {
+  flex: none; white-space: nowrap;
   appearance: none; border: 0; cursor: pointer;
   background: rgba(255, 255, 255, 0.12); color: #fff;
   font: inherit; font-size: 0.85rem; font-weight: 600;
@@ -224,6 +233,102 @@ body {
 .detalhe-incons-titulo { margin: 0 0 0.25rem; font-size: 0.8rem; font-weight: 700; color: var(--alerta-texto); }
 .detalhe-incons ul { margin: 0; padding-left: 1.1rem; font-size: 0.78rem; }
 
+.detalhe-incons ul li + li { margin-top: 0.25rem; }
+.detalhe-incons-nota { margin: 0.35rem 0 0; font-size: 0.72rem; color: var(--tinta-2); }
+.tag-incons { background: var(--alerta-fundo); color: var(--alerta-texto); border: 1px solid var(--alerta-borda); }
+
+/* =========================================================================
+   Aba "Inconsistências"
+   ========================================================================= */
+.aba-incons { display: block; }
+
+/* cartões-resumo: 2 métricas + 1 por regra */
+.cards-incons { grid-template-columns: repeat(2, 1fr); }
+.card-alerta {
+  background: var(--alerta-fundo);
+  border: 1px solid var(--alerta-borda);
+  text-align: left;
+}
+.card-alerta .card-titulo { color: var(--alerta-texto); font-size: 0.7rem; line-height: 1.25; }
+.card-alerta .card-valor { font-size: 1.35rem; }
+.card-rodape { margin: 0.25rem 0 0; font-size: 0.68rem; color: var(--tinta-2); }
+
+/* barra do ranking por UO em tom de alerta */
+.ranking-fill-alerta { background: var(--alerta-borda); }
+/* nomes de UO são longos: preferem quebrar a serem cortados por reticências */
+.aba-incons .ranking-nome { flex-wrap: wrap; }
+.aba-incons .ranking-autor { white-space: normal; overflow: visible; }
+
+/* sub-filtros (estado local do usuário, fora da URL) */
+.subfiltros {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
+  margin: 0.9rem 0 0.6rem;
+}
+.subfiltros-rotulo {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--tinta-fraca);
+  margin-left: 0.5rem;
+}
+.subfiltros-rotulo:first-child { margin-left: 0; }
+.pilula {
+  appearance: none; cursor: pointer; font: inherit; font-size: 0.74rem; font-weight: 600;
+  padding: 0.28rem 0.7rem; border-radius: 999px;
+  border: 1px solid var(--borda); background: var(--superficie); color: var(--tinta-2);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pilula:hover { border-color: var(--acento); color: var(--acento); }
+.pilula.ativa { background: var(--acento); border-color: var(--acento); color: #fff; }
+
+/* cartão de inconsistência */
+.cartao-alerta.grav-media { border-color: var(--aviso-borda); background: var(--aviso-fundo); }
+.cartao-uo {
+  margin: 0.4rem 0 0; font-size: 0.76rem; font-weight: 600; color: var(--tinta-2);
+}
+.chips-alerta { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+.chip {
+  font-size: 0.66rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 6px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.chip-alta { background: var(--alerta-fundo); border-color: var(--alerta-borda); color: var(--alerta-texto); }
+.chip-media { background: var(--aviso-fundo); border-color: var(--aviso-borda); color: var(--aviso-texto); }
+.chip-grav { margin-left: auto; }
+.chips-alerta .chip-grav { margin-left: 0; }
+.cartao-alerta.grav-media .cartao-frase-alerta { color: var(--aviso-texto); }
+
+/* blocos de alerta dentro do detalhe */
+.detalhe-incons { display: grid; gap: 0.5rem; }
+.alerta-bloco {
+  border-radius: 8px; padding: 0.5rem 0.6rem;
+  background: var(--superficie); border: 1px solid var(--borda); border-left-width: 4px;
+}
+.alerta-alta { border-left-color: var(--alerta-borda); }
+.alerta-media { border-left-color: var(--aviso-borda); }
+.alerta-titulo {
+  margin: 0; font-size: 0.78rem; font-weight: 700; color: var(--tinta);
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+}
+.alerta-desc { margin: 0.25rem 0 0; font-size: 0.78rem; color: var(--tinta-2); }
+.alerta-meta { margin: 0.4rem 0 0 !important; display: grid; gap: 0.2rem; }
+.alerta-meta div { display: flex; gap: 0.4rem; font-size: 0.73rem; }
+.alerta-meta dt { font-weight: 700; color: var(--tinta-fraca); min-width: 7.5rem; flex: none; }
+.alerta-meta dd { margin: 0; color: var(--tinta-2); overflow-wrap: anywhere; }
+
+/* destaque da evidência dentro da justificativa */
+.marca-evidencia {
+  background: var(--marca-fundo); color: var(--tinta);
+  padding: 0 0.12rem; border-radius: 3px; font-weight: 700;
+}
+
+/* metodologia */
+.metodologia {
+  margin-top: 1.2rem; background: var(--superficie);
+  border: 1px solid var(--borda); border-radius: 12px; padding: 0.7rem 0.9rem;
+}
+.metodologia summary {
+  cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--tinta-2);
+}
+.metodologia p { font-size: 0.78rem; color: var(--tinta-2); margin: 0.6rem 0 0; }
+
 /* rodapé */
 .rodape { padding: 0.8rem 1rem 1.2rem; color: var(--tinta-fraca); font-size: 0.7rem; text-align: center; }
 .rodape p { margin: 0; }
@@ -233,11 +338,18 @@ body {
   .cabecalho { padding: 1.1rem 1.5rem 0; }
   .cabecalho h1 { font-size: 1.3rem; }
   .cards { grid-template-columns: repeat(3, 1fr); }
+  .cards-incons { grid-template-columns: repeat(4, 1fr); }
+  .card-alerta .card-titulo { font-size: 0.74rem; }
+  .card-alerta .card-valor { font-size: 1.5rem; }
+  .card-rodape { font-size: 0.72rem; }
   .grade { grid-template-columns: repeat(2, 1fr); }
+  .alerta-meta div { font-size: 0.75rem; }
   .pizza { flex-direction: row; justify-content: center; align-items: center; gap: 1.5rem; }
 }
 @media (min-width: 1024px) {
   .grade { grid-template-columns: repeat(3, 1fr); }
+  /* cartões de inconsistência trazem muito texto: 2 colunas ficam legíveis */
+  .aba-incons .grade { grid-template-columns: repeat(2, 1fr); }
   .card-valor { font-size: 1.9rem; }
   /* dois gráficos lado a lado; dentro de cada um, svg acima da legenda */
   .paineis-graficos { grid-template-columns: 1fr 1fr; }

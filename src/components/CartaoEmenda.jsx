@@ -1,11 +1,14 @@
 import { fmtBRL, RP_LABEL } from '../dados.js'
 
-// Cartão de emenda, usado nas abas "Emendas" e "Inconsistências".
-// `alerta` = true muda a aparência (tom de alerta) e mostra a frase curta.
+// Cartão de emenda da aba "Emendas".
+// `grupo.inconsistencias` é uma lista de OBJETOS ({tipo, gravidade, rotulo,
+// descricao, evidencia, ...}) produzidos pelo pipeline. Aqui usamos apenas o
+// suficiente para sinalizar a emenda e remeter à aba "Inconsistências", que
+// tem a visualização completa (CartaoInconsistencia.jsx).
 export default function CartaoEmenda({ grupo, aberto, onToggle, alerta = false }) {
-  const fraseAlerta = alerta && grupo.inconsistencias.length > 0
-    ? 'OM citada na justificativa não pertence à UO da emenda (Mod. Aplic. ≠ 90).'
-    : null
+  const incons = grupo.inconsistencias || []
+  const rotulos = incons.map((i) => i.rotulo).filter((v, i, a) => a.indexOf(v) === i)
+  const frase = rotulos.join(' · ')
 
   return (
     <article className={`cartao${alerta ? ' cartao-alerta' : ''}${aberto ? ' aberto' : ''}`}>
@@ -25,9 +28,10 @@ export default function CartaoEmenda({ grupo, aberto, onToggle, alerta = false }
           {grupo.rps.map((rp) => (
             <span key={rp} className="tag tag-rp">{RP_LABEL(rp)}</span>
           ))}
+          {incons.length > 0 && <span className="tag tag-incons">⚠ inconsistência</span>}
           <span className="cartao-num">Nº {grupo.emenda}</span>
         </div>
-        {fraseAlerta && <p className="cartao-frase-alerta" role="alert">⚠ {fraseAlerta}</p>}
+        {alerta && frase && <p className="cartao-frase-alerta" role="alert">⚠ {frase}</p>}
       </button>
 
       {aberto && (
@@ -43,16 +47,24 @@ export default function CartaoEmenda({ grupo, aberto, onToggle, alerta = false }
                 <div><dt>Autor (UF)</dt><dd>{r.autorUF}</dd></div>
                 <div><dt>Localidade</dt><dd>{r.localidade}</dd></div>
                 <div><dt>GND (Cod)</dt><dd>{r.gnd}</dd></div>
+                <div><dt>Mod. Aplic. (Cod)</dt><dd>{r.modAplic || '—'}</dd></div>
                 <div><dt>C Mil A</dt><dd>{r.cmila}{r.cmilaFallback ? ' (município de MG não identificado — regra de fallback)' : ''}</dd></div>
               </dl>
               <p className="detalhe-just-titulo">Emenda (Justificativa)</p>
               <p className="detalhe-just">{r.justificativa || '—'}</p>
-              {alerta && (r.inconsistencias || []).length > 0 && (
+              {(r.inconsistencias || []).length > 0 && (
                 <div className="detalhe-incons">
-                  <p className="detalhe-incons-titulo">Inconsistências</p>
+                  <p className="detalhe-incons-titulo">Inconsistências identificadas</p>
                   <ul>
-                    {r.inconsistencias.map((desc, j) => <li key={j}>{desc}</li>)}
+                    {r.inconsistencias.map((inc, j) => (
+                      <li key={j}>
+                        <strong>{inc.rotulo}:</strong> {inc.descricao}
+                      </li>
+                    ))}
                   </ul>
+                  <p className="detalhe-incons-nota">
+                    Detalhamento completo na aba <strong>Inconsistências</strong>.
+                  </p>
                 </div>
               )}
             </div>
