@@ -22,8 +22,8 @@ export function corDoRP(rp) {
   return `light-dark(${c.claro}, ${c.escuro})`
 }
 
-const RAIO = 105
-const RAIO_INT = 58 // rosca: centro carrega o total
+const RAIO = 116
+const RAIO_INT = 64 // rosca: centro carrega o total
 const CX = 160
 const CY = 150
 
@@ -89,7 +89,7 @@ export default function GraficoPizza({ dados, total }) {
 
   return (
     <figure className="pizza" aria-label="Gráfico de pizza: valor solicitado por identificador de resultado primário (RP)">
-      <svg viewBox="-80 0 500 300" role="img">
+      <svg viewBox="-120 0 560 300" role="img">
         {fatias.map((f) => (
           <path
             key={f.k}
