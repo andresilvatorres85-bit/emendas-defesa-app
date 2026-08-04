@@ -329,6 +329,25 @@ body {
 }
 .metodologia p { font-size: 0.78rem; color: var(--tinta-2); margin: 0.6rem 0 0; }
 
+/* tela de erro (ErrorBoundary) — nunca deixar o usuário sem saída */
+.tela-erro { padding: 2.5rem 1.25rem; max-width: 42rem; margin: 0 auto; }
+.tela-erro h1 { font-size: 1.15rem; margin: 0 0 0.6rem; }
+.tela-erro p { font-size: 0.9rem; color: var(--tinta-2); margin: 0 0 1rem; }
+.tela-erro-acoes { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.botao-primario, .botao-secundario {
+  appearance: none; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 600;
+  padding: 0.55rem 1rem; border-radius: 8px; border: 1px solid var(--acento);
+}
+.botao-primario { background: var(--acento); color: #fff; }
+.botao-secundario { background: transparent; color: var(--acento); }
+.tela-erro details { font-size: 0.78rem; color: var(--tinta-fraca); }
+.tela-erro summary { cursor: pointer; }
+.tela-erro pre {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.72rem;
+  background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: 8px; padding: 0.6rem;
+}
+
 /* rodapé */
 .rodape { padding: 0.8rem 1rem 1.2rem; color: var(--tinta-fraca); font-size: 0.7rem; text-align: center; }
 .rodape p { margin: 0; }

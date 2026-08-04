@@ -40,12 +40,46 @@ export const FILTROS = [
   { id: 'cmila',     campo: 'cmila',      rotulo: 'C Mil A' },
 ]
 
+// O service worker serve o app pelo cache e o dados.json pela rede, então as
+// duas metades podem ficar em versões diferentes por alguns minutos após um
+// deploy. Antes da Regra 2 reescrita, `inconsistencias` era uma lista de
+// STRINGS; hoje é uma lista de objetos. Normalizar aqui evita que uma
+// combinação app-novo/dados-antigos derrube a renderização.
+function normalizarInconsistencia(item) {
+  if (typeof item === 'string') {
+    return {
+      tipo: 'uo_justificativa',
+      gravidade: 'media',
+      rotulo: 'Inconsistência',
+      descricao: item,
+      evidencia: '',
+      uoSugerida: '',
+      revisado: false,
+    }
+  }
+  if (!item || typeof item !== 'object') return null
+  return {
+    tipo: item.tipo || 'uo_justificativa',
+    gravidade: item.gravidade === 'alta' ? 'alta' : 'media',
+    rotulo: item.rotulo || 'Inconsistência',
+    descricao: item.descricao || '',
+    evidencia: item.evidencia || '',
+    uoSugerida: item.uoSugerida || '',
+    forcaUO: item.forcaUO || '',
+    forcaCitada: item.forcaCitada || '',
+    revisado: Boolean(item.revisado),
+  }
+}
+
 export async function carregarDados() {
   const resp = await fetch('./dados.json')
   if (!resp.ok) throw new Error(`Falha ao carregar dados (${resp.status})`)
   const dados = await resp.json()
-  // Deriva o campo "orgao" (consolidação por Força/MD) a partir da UO (Cod).
-  for (const r of dados.registros) r.orgao = orgaoDeUO(r.uoCod)
+  for (const r of dados.registros) {
+    // Deriva o campo "orgao" (consolidação por Força/MD) a partir da UO (Cod).
+    r.orgao = orgaoDeUO(r.uoCod)
+    r.inconsistencias = (r.inconsistencias || []).map(normalizarInconsistencia).filter(Boolean)
+  }
   return dados
 }
 
