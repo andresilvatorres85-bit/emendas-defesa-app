@@ -28,11 +28,12 @@ const CX = 160
 const CY = 150
 // Espaço vertical mínimo entre dois rótulos do mesmo lado. Acompanha o corpo
 // da fonte do rótulo (.pizza-rotulo text): fonte maior exige respiro maior.
-const GAP_ROTULO = 34
+// Rótulo de uma linha só ("Nome (12,3%)") cabe num passo menor.
+const GAP_ROTULO = 26
 // A caixa útil do viewBox (y de 0 a 300) menos uma folga para ascendente e
 // descendente do texto — o rótulo nunca é empurrado para fora do card.
-const Y_MIN = 20
-const Y_MAX = 276
+const Y_MIN = 16
+const Y_MAX = 286
 
 function arco(a0, a1) {
   // a0/a1 em radianos, sentido horário a partir do topo
@@ -115,7 +116,7 @@ export default function GraficoPizza({ dados, total }) {
 
   return (
     <figure className="pizza" aria-label="Gráfico de pizza: valor solicitado por identificador de resultado primário (RP)">
-      <svg viewBox="-155 0 630 300" role="img">
+      <svg viewBox="-186 0 692 300" role="img">
         {fatias.map((f) => (
           <path
             key={f.k}
@@ -141,13 +142,15 @@ export default function GraficoPizza({ dados, total }) {
                 stroke="var(--tinta-fraca)"
                 strokeWidth="1"
               />
-              {/* nome e percentual em duas linhas: com a fonte maior, uma linha
-                  só estouraria a lateral do card nos rótulos longos */}
-              <text textAnchor={f.lado === 1 ? 'start' : 'end'}>
-                <tspan x={tx + f.lado * 3} y={f.y - 4}>{f.rotuloCurto ?? f.rotulo}</tspan>
-                <tspan className="pizza-rotulo-pct" x={tx + f.lado * 3} y={f.y + 15}>
-                  {fmtPct(f.pct)}
-                </tspan>
+              {/* nome e percentual na mesma linha; o viewBox reserva a folga
+                  lateral necessária para o rótulo mais longo */}
+              <text
+                textAnchor={f.lado === 1 ? 'start' : 'end'}
+                x={tx + f.lado * 3}
+                y={f.y + 5}
+              >
+                {f.rotuloCurto ?? f.rotulo}
+                <tspan className="pizza-rotulo-pct"> ({fmtPct(f.pct)})</tspan>
               </text>
             </g>
           )

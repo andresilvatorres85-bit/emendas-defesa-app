@@ -1,11 +1,12 @@
 // ============================================================= exportações ===
-// Duas saídas, nenhuma dependência nova: o app é 100% estático e o workflow
-// roda `npm ci`, então qualquer biblioteca obrigaria a subir também o
-// package-lock.json — custo alto para um ganho que dá para obter no navegador.
+// Nenhuma dependência nova: o app é 100% estático e o workflow roda `npm ci`,
+// então qualquer biblioteca obrigaria a subir também o package-lock.json —
+// custo alto para um ganho que dá para obter no navegador.
 //
-//  PDF  → `window.print()` sobre a folha `@media print` (A4). O texto sai
-//         vetorial e o navegador pagina sozinho, sem colar imagem esticada
-//         numa página. O usuário escolhe "Salvar como PDF" no diálogo.
+// Aqui mora a exportação PNG (o PPTX está em pptx.js e reaproveita `baixar` e
+// `nomeArquivo` daqui). A folha `@media print` continua no styles.css: quem
+// quiser um PDF A4 usa o Ctrl+P do navegador, que já sai paginado e vetorial.
+//
 //  PNG  → o card é clonado, cada nó recebe o seu estilo *computado* inline
 //         (dentro de um <img> de SVG nenhuma folha de estilo externa se
 //         aplica), o clone entra num <foreignObject> e o SVG é desenhado num
@@ -42,7 +43,7 @@ function copiarEstilo(origem, destino, contador) {
   return regras
 }
 
-function baixar(blob, nomeArquivo) {
+export function baixar(blob, nomeArquivo) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -138,9 +139,4 @@ export async function exportarPNG(card, titulo, contexto) {
   const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'))
   if (!blob) throw new Error('não foi possível gerar o PNG')
   baixar(blob, nomeArquivo(titulo, 'png'))
-}
-
-// Exporta o Dashboard em PDF A4 pelo diálogo de impressão do navegador.
-export function exportarPDF() {
-  window.print()
 }

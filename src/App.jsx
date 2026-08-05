@@ -5,7 +5,7 @@ import {
   FILTROS, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
-import { exportarPDF } from './exportar.js'
+import { exportarPPTX } from './pptx.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import TemaBotao from './components/TemaBotao.jsx'
 import BotaoPNG from './components/BotaoPNG.jsx'
@@ -70,10 +70,36 @@ export default function App() {
   const recorte = filtrosAtivos.length
     ? `Filtros — ${filtrosAtivos.join(' · ')}`
     : 'Sem filtros — todas as emendas apresentadas'
+  const escopo = 'Ministério da Defesa · Órgão 52000 · Setor 13'
   const contextoExport =
-    `Emendas ao PLOA — Ministério da Defesa · Órgão 52000 · Setor 13. ${recorte}. ` +
+    `Emendas ao PLOA — ${escopo}. ${recorte}. ` +
     `${fmtInt(stats.qtdEmendas)} emendas · ${fmtBRL(stats.valorTotal)}. ` +
     `Extraído em ${new Date().toLocaleString('pt-BR')}.`
+
+  // Carga do PPTX: os mesmos números que estão na tela, já filtrados. Montada
+  // no clique (e não a cada render) para não custar nada enquanto ninguém
+  // exporta — e para carimbar a hora da exportação, não a do render.
+  const baixarPPTX = () =>
+    exportarPPTX({
+      titulo: 'EMENDAS PARLAMENTARES APRESENTADAS AO PLOA',
+      escopo,
+      recorte,
+      geradoEm: new Date().toLocaleString('pt-BR'),
+      fonte: dados.fonte,
+      stats,
+      qtdRegistros: registros.length,
+      totalImpositivas,
+      pctImpositivas,
+      porRP,
+      impositivas,
+      autores: autoresTop,
+      totalAutores,
+      pctAutoresRP6,
+      cmila: impCMilA,
+      totalCMilA,
+      partidos,
+      totalPartidos,
+    })
 
   return (
     <div className="app">
@@ -121,11 +147,11 @@ export default function App() {
         {aba === 'dashboard' && (
           <button
             type="button"
-            className="btn-pdf"
-            onClick={exportarPDF}
-            title="Gerar o Dashboard em PDF A4 com os filtros atuais"
+            className="btn-pptx"
+            onClick={baixarPPTX}
+            title="Baixar o Dashboard em PowerPoint editável com os filtros atuais"
           >
-            Exportar PDF
+            Exportar PPTX
           </button>
         )}
       </section>

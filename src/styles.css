@@ -222,9 +222,9 @@ body {
 }
 .limpar-tudo { align-self: center; font-weight: 700; }
 
-/* botão "Exportar PDF" — fica na barra de filtros, junto do recorte que ele
-   imprime, e é sólido para se separar dos seletores */
-.btn-pdf {
+/* botão "Exportar PPTX" — fica na barra de filtros, junto do recorte que ele
+   exporta, e é sólido para se separar dos seletores */
+.btn-pptx {
   appearance: none; cursor: pointer; font: inherit;
   font-size: 0.76rem; font-weight: 700; line-height: 1;
   padding: 0.44rem 0.75rem; margin-left: auto; align-self: center;
@@ -232,8 +232,8 @@ body {
   background: var(--acento); color: light-dark(#fff, #06110c);
   white-space: nowrap;
 }
-.btn-pdf:hover { filter: brightness(1.06); }
-.btn-pdf:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.btn-pptx:hover { filter: brightness(1.06); }
+.btn-pptx:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 
 /* ======================================================== conteúdo ======== */
 .conteudo {
@@ -356,13 +356,17 @@ body {
 
 /* --------------------------------------------------- rosca (donut) ------- */
 .pizza { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
-.pizza svg { width: 100%; max-width: 560px; height: auto; }
+/* O viewBox reserva folga lateral para o rótulo de uma linha ("Nome (12,3%)").
+   O corpo aparente da fonte é `font-size x largura renderizada / largura do
+   viewBox` — por isso alargar o viewBox exige alargar também o desenho, senão
+   o rótulo encolhe na tela. */
+.pizza svg { width: 100%; max-width: 640px; height: auto; }
 .pizza-rotulo text { font-size: 17px; font-weight: 700; fill: var(--tinta); }
 .pizza-rotulo-pct { font-weight: 600; fill: var(--tinta-fraca); }
 .pizza-centro-valor { font-size: 30px; font-weight: 700; fill: var(--tinta); }
 .pizza-centro-sub { font-size: 11.5px; fill: var(--tinta-fraca); }
 .pizza-centro-nome { font-size: 12.5px; font-weight: 600; fill: var(--tinta-2); }
-.pizza-legenda { display: flex; flex-direction: column; gap: 0.15rem; width: 100%; max-width: 560px; }
+.pizza-legenda { display: flex; flex-direction: column; gap: 0.15rem; width: 100%; max-width: 640px; }
 .legenda-item {
   display: flex; align-items: center; gap: 0.55rem; font-size: 0.86rem;
   padding: 0.28rem 0.4rem; border-radius: var(--r-p);
@@ -680,7 +684,7 @@ body {
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   /* fora do papel: navegação, controles e os próprios botões de exportação */
-  .cabecalho, .filtros, .rodape, .abas, .tema, .btn-pdf, .btn-png,
+  .cabecalho, .filtros, .rodape, .abas, .tema, .btn-pptx, .btn-png,
   [data-sem-exportar] { display: none !important; }
 
   .app { display: block; }
