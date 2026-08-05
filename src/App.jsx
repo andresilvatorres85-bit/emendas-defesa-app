@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
   resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, topAutores, valorPorPartido,
-  FILTROS, fmtBRL, fmtInt,
+  FILTROS, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
 import MultiSelect from './components/MultiSelect.jsx'
+import TemaBotao from './components/TemaBotao.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
 import GraficoBarras from './components/GraficoBarras.jsx'
 import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
@@ -48,12 +49,28 @@ export default function App() {
     return <main className="carregando">Carregando dados…</main>
   }
 
+  const heroi = fmtCompacto(stats.valorTotal)
+  const impositivo = fmtCompacto(totalImpositivas)
+  const pctImpositivas = stats.valorTotal ? (totalImpositivas / stats.valorTotal) * 100 : 0
+  const totalCMilA = impCMilA.reduce((s, d) => s + d.total, 0)
+  const totalAutores = autoresTop.reduce((s, d) => s + d.valor, 0)
+  const totalPartidos = partidos.reduce((s, d) => s + d.valor, 0)
+
   return (
     <div className="app">
       <header className="cabecalho">
-        <div className="cabecalho-texto">
-          <h1>Emendas ao PLOA — Ministério da Defesa</h1>
-          <p>Órgão 52000 · Setor 13 · {fmtInt(registros.length)} registros · fonte: {dados.fonte}</p>
+        <div className="cabecalho-topo">
+          <span className="marca" aria-hidden>MD</span>
+          <div className="cabecalho-texto">
+            <h1>Emendas ao PLOA — Ministério da Defesa</h1>
+            <p className="cabecalho-meta">
+              <span>Órgão 52000</span>
+              <span>Setor 13</span>
+              <span>{fmtInt(registros.length)} registros</span>
+              <span>fonte: {dados.fonte}</span>
+            </p>
+          </div>
+          <TemaBotao />
         </div>
         <nav className="abas" role="tablist" aria-label="Seções">
           {ABAS.map((a) => (
@@ -74,6 +91,7 @@ export default function App() {
       </header>
 
       <section className="filtros" aria-label="Filtros">
+        <span className="filtros-rotulo">Filtros</span>
         {FILTROS.map((f) => (
           <MultiSelect
             key={f.id}
@@ -93,45 +111,98 @@ export default function App() {
       <main className="conteudo">
         {aba === 'dashboard' && (
           <>
-            <div className="cards" role="region" aria-label="Indicadores">
-              <div className="card">
-                <p className="card-titulo">VALOR TOTAL</p>
-                <p className="card-valor">{fmtBRL(stats.valorTotal)}</p>
-              </div>
-              <div className="card">
-                <p className="card-titulo">QNT EMENDAS</p>
-                <p className="card-valor">{fmtInt(stats.qtdEmendas)}</p>
-              </div>
-              <div className="card">
-                <p className="card-titulo">QNT PARLAMENTARES</p>
-                <p className="card-valor">{fmtInt(stats.qtdParlamentares)}</p>
+            <div className="destaque" role="region" aria-label="Indicadores">
+              <section className="heroi">
+                <p className="heroi-rotulo">Valor total solicitado</p>
+                <p className="heroi-valor">
+                  R$ {heroi.valor}
+                  {heroi.unidade && <span className="heroi-unidade">{heroi.unidade}</span>}
+                </p>
+                <p className="heroi-exato">{fmtBRL(stats.valorTotal)}</p>
+                <p className="heroi-nota">
+                  {temFiltro ? 'Recorte filtrado' : 'Todas as emendas apresentadas'} ·
+                  {' '}{fmtInt(stats.qtdEmendas)} emendas em {fmtInt(registros.length)} registros
+                </p>
+              </section>
+
+              <div className="tiras">
+                <section className="tira">
+                  <p className="tira-rotulo">Emendas</p>
+                  <p className="tira-valor">{fmtInt(stats.qtdEmendas)}</p>
+                  <p className="tira-nota">Emendas distintas no recorte</p>
+                </section>
+                <section className="tira">
+                  <p className="tira-rotulo">Parlamentares</p>
+                  <p className="tira-valor">{fmtInt(stats.qtdParlamentares)}</p>
+                  <p className="tira-nota">Autores distintos das emendas</p>
+                </section>
+                <section className="tira">
+                  <p className="tira-rotulo">Impositivas</p>
+                  <p className="tira-valor">
+                    R$ {impositivo.valor}
+                    {impositivo.unidade && <span className="tira-unidade">{impositivo.unidade}</span>}
+                  </p>
+                  <p className="tira-nota">RP6 + RP7 · {fmtPct(pctImpositivas)} do total</p>
+                </section>
               </div>
             </div>
-            <div className="paineis-graficos">
-              <section className="painel-grafico">
-                <h2>EMENDAS PARLAMENTARES AO PLOA</h2>
+
+            <div className="paineis">
+              <section className="painel-grafico p-6">
+                <div className="painel-cab">
+                  <div className="painel-cab-txt">
+                    <h2>Emendas parlamentares ao PLOA</h2>
+                    <p className="painel-sub">Valor solicitado por identificador de resultado primário (RP)</p>
+                  </div>
+                  <span className="painel-total">{fmtMilhoes(stats.valorTotal)}</span>
+                </div>
                 <GraficoPizza dados={porRP} total={stats.valorTotal} />
               </section>
-              <section className="painel-grafico">
-                <h2>EMENDAS IMPOSITIVAS</h2>
+
+              <section className="painel-grafico p-6">
+                <div className="painel-cab">
+                  <div className="painel-cab-txt">
+                    <h2>Emendas impositivas</h2>
+                    <p className="painel-sub">RP6 por tipo de autor · RP7 por bancada</p>
+                  </div>
+                  <span className="painel-total">{fmtMilhoes(totalImpositivas)}</span>
+                </div>
                 <GraficoPizza dados={impositivas} total={totalImpositivas} />
               </section>
+
+              <section className="painel-grafico p-6">
+                <div className="painel-cab">
+                  <div className="painel-cab-txt">
+                    <h2>Impositivas por C Mil A</h2>
+                    <p className="painel-sub">Somente UO do Exército (Comando do Exército e IMBEL)</p>
+                  </div>
+                  <span className="painel-total">{fmtMilhoes(totalCMilA)}</span>
+                </div>
+                <GraficoBarras dados={impCMilA} />
+              </section>
+
+              <section className="painel-grafico p-6">
+                <div className="painel-cab">
+                  <div className="painel-cab-txt">
+                    <h2>10 maiores autores</h2>
+                    <p className="painel-sub">Deputados Federais e Senadores, por valor total</p>
+                  </div>
+                  <span className="painel-total">{fmtMilhoes(totalAutores)}</span>
+                </div>
+                <GraficoBarrasSimples dados={autoresTop} />
+              </section>
+
+              <section className="painel-grafico p-12">
+                <div className="painel-cab">
+                  <div className="painel-cab-txt">
+                    <h2>Emendas por partido</h2>
+                    <p className="painel-sub">Exclui comissões e bancadas (sem partido)</p>
+                  </div>
+                  <span className="painel-total">{fmtMilhoes(totalPartidos)}</span>
+                </div>
+                <GraficoPartidos dados={partidos} />
+              </section>
             </div>
-            <section className="painel-grafico">
-              <h2>EMENDAS IMPOSITIVAS POR COMANDO MILITAR DE ÁREA</h2>
-              <p className="painel-sub">Considera apenas as UO do Exército (Comando do Exército e IMBEL)</p>
-              <GraficoBarras dados={impCMilA} />
-            </section>
-            <section className="painel-grafico">
-              <h2>10 MAIORES AUTORES POR VALOR EM EMENDAS</h2>
-              <p className="painel-sub">Soma de todas as emendas por autor · apenas Deputados Federais e Senadores</p>
-              <GraficoBarrasSimples dados={autoresTop} />
-            </section>
-            <section className="painel-grafico">
-              <h2>EMENDAS POR PARTIDO</h2>
-              <p className="painel-sub">Valor total e quantidade de emendas por partido · exclui comissões/bancadas (sem partido)</p>
-              <GraficoPartidos dados={partidos} />
-            </section>
           </>
         )}
 

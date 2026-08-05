@@ -23,7 +23,7 @@ export function corDoRP(rp) {
 }
 
 const RAIO = 116
-const RAIO_INT = 64 // rosca: centro carrega o total
+const RAIO_INT = 82 // rosca fina: o centro carrega o total (ou a fatia sob o cursor)
 const CX = 160
 const CY = 150
 
@@ -83,6 +83,9 @@ export default function GraficoPizza({ dados, total }) {
     return r
   }, [fatias])
 
+  // Fatia sob o cursor: o centro da rosca troca o total pelo valor focado.
+  const foco = hover === null ? null : fatias.find((f) => f.k === hover) || null
+
   if (!fatias.length) {
     return <p className="grafico-vazio">Sem valores para os filtros aplicados.</p>
   }
@@ -122,11 +125,16 @@ export default function GraficoPizza({ dados, total }) {
           )
         })}
         <text className="pizza-centro-valor" x={CX} y={CY - 2} textAnchor="middle">
-          {fmtMilhoes(total).replace(' mi', '')}
+          {fmtMilhoes(foco ? foco.valor : total).replace(' mi', '')}
         </text>
-        <text className="pizza-centro-sub" x={CX} y={CY + 16} textAnchor="middle">
-          milhões · total
+        <text className="pizza-centro-sub" x={CX} y={CY + 17} textAnchor="middle">
+          {foco ? `milhões · ${fmtPct(foco.pct)}` : 'milhões · total'}
         </text>
+        {foco && (
+          <text className="pizza-centro-nome" x={CX} y={CY + 33} textAnchor="middle">
+            {foco.rotuloCurto ?? foco.rotulo}
+          </text>
+        )}
       </svg>
       <figcaption className="pizza-legenda">
         {fatias.map((f) => (

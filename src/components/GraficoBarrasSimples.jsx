@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react'
 import { fmtMilhoes } from '../dados.js'
 
-// Cor por tipo de autor, seguindo a identidade das Casas:
-//  - Sen (Senado Federal): azul institucional (#00305c, cf. identidade visual
-//    do Senado — www12.senado.leg.br/identidadevisual);
-//  - Dep (Câmara dos Deputados): verde institucional (~Pantone 356 / #009640,
-//    a cor do plenário/marca da Câmara — www2.camara.leg.br/.../uso-da-marca).
-// Variações mais claras no modo escuro para manter o contraste.
+// Cor por tipo de autor. Mantém a leitura institucional (Senado azul, Câmara
+// verde), mas nos passos da paleta categórica validada — os tons oficiais
+// (#00305c / #009640) reprovam na faixa de luminosidade e no contraste.
 const COR_TIPO = {
-  Sen: 'light-dark(#00305c, #5b9bd5)', // azul — Senado
-  Dep: 'light-dark(#009640, #2fb45f)', // verde — Câmara
+  Sen: 'var(--serie-azul)',  // azul — Senado
+  Dep: 'var(--serie-verde)', // verde — Câmara
 }
 
 export default function GraficoBarrasSimples({ dados }) {
@@ -37,7 +34,8 @@ export default function GraficoBarrasSimples({ dados }) {
               <div className="ranking-topo">
                 <span className="ranking-nome">
                   <span className="ranking-pos">{i + 1}.</span>
-                  <span className="ranking-sigla" style={{ color: cor }}>{d.sigla}</span>
+                  <span className="ranking-chave" style={{ background: cor }} aria-hidden />
+                  <span className="ranking-sigla">{d.sigla}</span>
                   <span className="ranking-autor">{d.nome}</span>
                   {d.uf && d.uf !== 'NA' && <span className="ranking-uf">· {d.uf}</span>}
                 </span>

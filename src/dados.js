@@ -271,11 +271,11 @@ export const COR_RP6_SEN = 'light-dark(#4a3aa7, #9085e9)'
 // alfabética do autor, garantindo cores estáveis para o mesmo conjunto.
 const PALETA_RP7 = [
   'light-dark(#eda100, #c98500)', // âmbar
+  'light-dark(#008300, #008300)', // verde
+  'light-dark(#2a78d6, #3987e5)', // azul
   'light-dark(#1baf7a, #199e70)', // verde-azulado
   'light-dark(#eb6834, #d95926)', // laranja
-  'light-dark(#2a78d6, #3987e5)', // azul
   'light-dark(#e34948, #e66767)', // vermelho
-  'light-dark(#008300, #009a00)', // verde
 ]
 
 // Título em pt-BR: capitaliza palavras, mantém conectores minúsculos.
@@ -411,6 +411,17 @@ export const fmtMilhoes = (v) =>
   `R$ ${(v / 1e6).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mi`
 
 export const fmtInt = (v) => v.toLocaleString('pt-BR')
+
+// Número-herói: compacto e legível a distância (bi / mi / mil).
+// Devolve { valor, unidade } para que a unidade possa ser tipografada menor.
+export function fmtCompacto(v) {
+  const n = Math.abs(v)
+  const dec = (x, d) => x.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
+  if (n >= 1e9) return { valor: dec(v / 1e9, 2), unidade: 'bi' }
+  if (n >= 1e6) return { valor: dec(v / 1e6, 1), unidade: 'mi' }
+  if (n >= 1e3) return { valor: dec(v / 1e3, 0), unidade: 'mil' }
+  return { valor: dec(v, 0), unidade: '' }
+}
 
 export const fmtPct = (v) =>
   `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`

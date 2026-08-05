@@ -66,8 +66,13 @@ export default function AbaInconsistencias({ registros, detalhe, abrirDetalhe })
       </div>
 
       <section className="painel-grafico">
-        <h2>INCONSISTÊNCIAS POR UNIDADE ORÇAMENTÁRIA</h2>
-        <p className="painel-sub">Quantidade de registros sinalizados e valor correspondente</p>
+        <div className="painel-cab">
+          <div className="painel-cab-txt">
+            <h2>Inconsistências por unidade orçamentária</h2>
+            <p className="painel-sub">Quantidade de registros sinalizados e valor correspondente</p>
+          </div>
+          <span className="painel-total">{fmtMilhoes(resumo.valor)}</span>
+        </div>
         <figure className="ranking" aria-label="Inconsistências por unidade orçamentária">
           <ol className="ranking-lista">
             {resumo.porUO.map((u) => (

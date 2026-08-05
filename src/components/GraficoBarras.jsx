@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { fmtMilhoes } from '../dados.js'
 
-// Séries do comparativo por C Mil A. Cores fixas e coerentes com o resto do
-// dashboard: RP6 rosa, RP7 âmbar, e o total (RP6+RP7) no verde institucional.
+// Comparativo por C Mil A. Uma barra empilhada por comando: RP6 + RP7, com o
+// total rotulado na ponta (o total é a própria barra — não precisa de uma
+// terceira barra repetindo a soma). Segmentos separados por uma folga de 2px
+// na cor da superfície (nunca por borda). Cores validadas (CVD) nos dois modos.
 const SERIES = [
-  { chave: 'rp6', rotulo: 'RP6', cor: 'light-dark(#e87ba4, #d55181)' },
-  { chave: 'rp7', rotulo: 'RP7', cor: 'light-dark(#eda100, #c98500)' },
-  { chave: 'total', rotulo: 'RP6+RP7', cor: 'light-dark(#14532d, #2f9e56)' },
+  { chave: 'rp6', rotulo: 'RP6', cor: 'var(--serie-magenta)' },
+  { chave: 'rp7', rotulo: 'RP7', cor: 'var(--serie-amarelo)' },
 ]
 
 export default function GraficoBarras({ dados }) {
@@ -20,37 +21,50 @@ export default function GraficoBarras({ dados }) {
 
   return (
     <figure
-      className="barras"
-      aria-label="Gráfico de barras: total impositivo (RP6, RP7 e RP6+RP7) por Comando Militar de Área"
+      className="cmila"
+      aria-label="Gráfico de barras empilhadas: valor impositivo RP6 e RP7 por Comando Militar de Área"
     >
-      <div className="barras-grupos">
-        {dados.map((d) => (
-          <div className="barras-grupo" key={d.cmila}>
-            <div className="barras-grupo-cab">
-              <span className="barras-sigla">{d.cmila}</span>
-              <span className="barras-nome">{d.nome}</span>
-            </div>
-            {SERIES.map((s) => (
-              <div
-                className="barras-linha"
-                key={s.chave}
-                onMouseEnter={() => setHover(s.chave)}
-                onMouseLeave={() => setHover(null)}
-                style={{ opacity: hover === null || hover === s.chave ? 1 : 0.4 }}
-              >
-                <span className="barras-rotulo">{s.rotulo}</span>
-                <span className="barras-trilho">
-                  <span
-                    className="barras-fill"
-                    style={{ width: `${(d[s.chave] / max) * 100}%`, background: s.cor }}
-                  />
-                </span>
-                <span className="barras-valor">{fmtMilhoes(d[s.chave])}</span>
+      <ol className="cmila-lista">
+        {dados.map((d) => {
+          const larguraTotal = (d.total / max) * 100
+          return (
+            <li className="cmila-item" key={d.cmila}>
+              <div className="cmila-topo">
+                <span className="cmila-sigla">{d.cmila}</span>
+                <span className="cmila-nome">{d.nome}</span>
+                <span className="cmila-total">{fmtMilhoes(d.total)}</span>
               </div>
-            ))}
-          </div>
-        ))}
-      </div>
+              <div className="cmila-barra" style={{ width: `${larguraTotal}%` }}>
+                {SERIES.map((s) =>
+                  d[s.chave] > 0 ? (
+                    <span
+                      key={s.chave}
+                      className="cmila-seg"
+                      title={`${d.cmila} · ${s.rotulo}: ${fmtMilhoes(d[s.chave])}`}
+                      style={{
+                        width: `${(d[s.chave] / d.total) * 100}%`,
+                        background: s.cor,
+                        opacity: hover === null || hover === s.chave ? 1 : 0.35,
+                      }}
+                      onMouseEnter={() => setHover(s.chave)}
+                      onMouseLeave={() => setHover(null)}
+                    />
+                  ) : null
+                )}
+              </div>
+              <div className="cmila-quebra">
+                {/* só as séries com valor: repetir "RP7 R$ 0,0 mi" é ruído */}
+                {SERIES.filter((s) => d[s.chave] > 0).map((s) => (
+                  <span key={s.chave} className="cmila-quebra-item">
+                    <span className="cmila-ponto" style={{ background: s.cor }} aria-hidden />
+                    {s.rotulo} {fmtMilhoes(d[s.chave])}
+                  </span>
+                ))}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
 
       <figcaption className="barras-legenda">
         {SERIES.map((s) => (

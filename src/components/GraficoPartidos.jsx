@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { fmtMilhoes, fmtInt } from '../dados.js'
 
-const COR = 'light-dark(#5b4bc4, #9085e9)' // roxo institucional neutro
+// Série única: um só tom (slot violeta da paleta validada). Sem legenda —
+// o título já diz o que está plotado.
+const COR = 'var(--serie-violeta)'
 
 export default function GraficoPartidos({ dados }) {
   const max = useMemo(() => Math.max(1, ...dados.map((d) => d.valor)), [dados])
@@ -11,7 +13,7 @@ export default function GraficoPartidos({ dados }) {
   }
 
   return (
-    <figure className="ranking" aria-label="Valor total de emendas por partido, com a quantidade de emendas">
+    <figure className="ranking partidos" aria-label="Valor total de emendas por partido, com a quantidade de emendas">
       <ol className="ranking-lista">
         {dados.map((d, i) => (
           <li className="ranking-item" key={d.partido}>
