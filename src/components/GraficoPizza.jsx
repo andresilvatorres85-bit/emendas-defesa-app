@@ -26,6 +26,13 @@ const RAIO = 116
 const RAIO_INT = 82 // rosca fina: o centro carrega o total (ou a fatia sob o cursor)
 const CX = 160
 const CY = 150
+// Espaço vertical mínimo entre dois rótulos do mesmo lado. Acompanha o corpo
+// da fonte do rótulo (.pizza-rotulo text): fonte maior exige respiro maior.
+const GAP_ROTULO = 34
+// A caixa útil do viewBox (y de 0 a 300) menos uma folga para ascendente e
+// descendente do texto — o rótulo nunca é empurrado para fora do card.
+const Y_MIN = 20
+const Y_MAX = 276
 
 function arco(a0, a1) {
   // a0/a1 em radianos, sentido horário a partir do topo
@@ -52,13 +59,22 @@ export default function GraficoPizza({ dados, total }) {
     let acc = 0
     const positivos = dados.filter((d) => d.valor > 0)
     const soma = positivos.reduce((s, d) => s + d.valor, 0) || 1
-    return positivos.map((d) => {
+    const cruas = positivos.map((d) => {
       const a0 = (acc / soma) * 2 * Math.PI
       acc += d.valor
       const a1 = (acc / soma) * 2 * Math.PI
-      const meio = (a0 + a1) / 2
       // `k` = identidade estável da fatia (chave própria ou o RP); `cor` fixa.
-      return { ...d, k: d.chave ?? d.rp, cor: d.cor ?? corDoRP(d.rp), a0, a1, meio, pct: (d.valor / soma) * 100 }
+      return { ...d, k: d.chave ?? d.rp, cor: d.cor ?? corDoRP(d.rp), a0, a1, pct: (d.valor / soma) * 100 }
+    })
+    // Giro da rosca: a maior fatia vai para as 3 horas. Isso tira as fatias
+    // pequenas do topo — onde há pouca altura e os rótulos se empilhavam — e
+    // as distribui pela lateral esquerda, onde cada rótulo tem linha própria.
+    const maior = cruas.reduce((m, d) => (d.valor > m.valor ? d : m), cruas[0] ?? { valor: 0 })
+    const giro = maior.a0 === undefined ? 0 : Math.PI / 2 - (maior.a0 + maior.a1) / 2
+    return cruas.map((f) => {
+      const a0 = f.a0 + giro
+      const a1 = f.a1 + giro
+      return { ...f, a0, a1, meio: (a0 + a1) / 2 }
     })
   }, [dados])
 
@@ -76,8 +92,15 @@ export default function GraficoPizza({ dados, total }) {
     })
     for (const lado of [1, -1]) {
       const doLado = r.filter((x) => x.lado === lado).sort((a, b) => a.y - b.y)
+      // empurra para baixo o que colide…
       for (let i = 1; i < doLado.length; i++) {
-        if (doLado[i].y - doLado[i - 1].y < 18) doLado[i].y = doLado[i - 1].y + 18
+        if (doLado[i].y - doLado[i - 1].y < GAP_ROTULO) doLado[i].y = doLado[i - 1].y + GAP_ROTULO
+      }
+      // …e, se a pilha estourou a base do card, devolve tudo para dentro.
+      const excesso = doLado.length ? doLado[doLado.length - 1].y - Y_MAX : 0
+      if (excesso > 0) for (const x of doLado) x.y -= excesso
+      for (let i = 0; i < doLado.length; i++) {
+        doLado[i].y = Math.max(Y_MIN + i * GAP_ROTULO, doLado[i].y)
       }
     }
     return r
@@ -92,7 +115,7 @@ export default function GraficoPizza({ dados, total }) {
 
   return (
     <figure className="pizza" aria-label="Gráfico de pizza: valor solicitado por identificador de resultado primário (RP)">
-      <svg viewBox="-120 0 560 300" role="img">
+      <svg viewBox="-155 0 630 300" role="img">
         {fatias.map((f) => (
           <path
             key={f.k}
@@ -118,8 +141,13 @@ export default function GraficoPizza({ dados, total }) {
                 stroke="var(--tinta-fraca)"
                 strokeWidth="1"
               />
-              <text x={tx + f.lado * 3} y={f.y + 4} textAnchor={f.lado === 1 ? 'start' : 'end'}>
-                {(f.rotuloCurto ?? f.rotulo)} ({fmtPct(f.pct)})
+              {/* nome e percentual em duas linhas: com a fonte maior, uma linha
+                  só estouraria a lateral do card nos rótulos longos */}
+              <text textAnchor={f.lado === 1 ? 'start' : 'end'}>
+                <tspan x={tx + f.lado * 3} y={f.y - 4}>{f.rotuloCurto ?? f.rotulo}</tspan>
+                <tspan className="pizza-rotulo-pct" x={tx + f.lado * 3} y={f.y + 15}>
+                  {fmtPct(f.pct)}
+                </tspan>
               </text>
             </g>
           )

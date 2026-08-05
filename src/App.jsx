@@ -5,8 +5,10 @@ import {
   FILTROS, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
+import { exportarPDF } from './exportar.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import TemaBotao from './components/TemaBotao.jsx'
+import BotaoPNG from './components/BotaoPNG.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
 import GraficoBarras from './components/GraficoBarras.jsx'
 import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
@@ -55,20 +57,30 @@ export default function App() {
   const totalCMilA = impCMilA.reduce((s, d) => s + d.total, 0)
   const totalAutores = autoresTop.reduce((s, d) => s + d.valor, 0)
   const totalPartidos = partidos.reduce((s, d) => s + d.valor, 0)
+  // Os 10 maiores autores são parlamentares individuais, e emenda individual é
+  // RP6 — por isso a base de comparação do percentual é o total de RP6.
+  const totalRP6 = porRP.find((d) => String(d.rp) === '6')?.valor ?? 0
+  const pctAutoresRP6 = totalRP6 ? (totalAutores / totalRP6) * 100 : 0
+
+  // Texto do recorte: vai no rodapé de cada PNG e no cabeçalho da folha A4,
+  // para que a imagem/página exportada diga sozinha o que está mostrando.
+  const filtrosAtivos = FILTROS
+    .filter((f) => filtros[f.id]?.size > 0)
+    .map((f) => `${f.rotulo}: ${[...filtros[f.id]].join(', ')}`)
+  const recorte = filtrosAtivos.length
+    ? `Filtros — ${filtrosAtivos.join(' · ')}`
+    : 'Sem filtros — todas as emendas apresentadas'
+  const contextoExport =
+    `Emendas ao PLOA — Ministério da Defesa · Órgão 52000 · Setor 13. ${recorte}. ` +
+    `${fmtInt(stats.qtdEmendas)} emendas · ${fmtBRL(stats.valorTotal)}. ` +
+    `Extraído em ${new Date().toLocaleString('pt-BR')}.`
 
   return (
     <div className="app">
       <header className="cabecalho">
         <div className="cabecalho-topo">
-          <span className="marca" aria-hidden>MD</span>
           <div className="cabecalho-texto">
             <h1>Emendas ao PLOA — Ministério da Defesa</h1>
-            <p className="cabecalho-meta">
-              <span>Órgão 52000</span>
-              <span>Setor 13</span>
-              <span>{fmtInt(registros.length)} registros</span>
-              <span>fonte: {dados.fonte}</span>
-            </p>
           </div>
           <TemaBotao />
         </div>
@@ -106,11 +118,29 @@ export default function App() {
             Limpar filtros
           </button>
         )}
+        {aba === 'dashboard' && (
+          <button
+            type="button"
+            className="btn-pdf"
+            onClick={exportarPDF}
+            title="Gerar o Dashboard em PDF A4 com os filtros atuais"
+          >
+            Exportar PDF
+          </button>
+        )}
       </section>
 
       <main className="conteudo">
         {aba === 'dashboard' && (
           <>
+            {/* só aparece na impressão / PDF */}
+            <header className="folha-cab">
+              <h2>EMENDAS APRESENTADAS AO PLOA</h2>
+              <p>Ministério da Defesa · Órgão 52000 · Setor 13</p>
+              <p>{recorte}</p>
+              <p>Extraído em {new Date().toLocaleString('pt-BR')} · fonte: {dados.fonte}</p>
+            </header>
+
             <div className="destaque" role="region" aria-label="Indicadores">
               <section className="heroi">
                 <p className="heroi-rotulo">Valor total solicitado</p>
@@ -155,6 +185,7 @@ export default function App() {
                     <p className="painel-sub">Valor solicitado por identificador de resultado primário (RP)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(stats.valorTotal)}</span>
+                  <BotaoPNG titulo="Emendas parlamentares ao PLOA" contexto={contextoExport} />
                 </div>
                 <GraficoPizza dados={porRP} total={stats.valorTotal} />
               </section>
@@ -166,6 +197,7 @@ export default function App() {
                     <p className="painel-sub">RP6 por tipo de autor · RP7 por bancada</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalImpositivas)}</span>
+                  <BotaoPNG titulo="Emendas impositivas" contexto={contextoExport} />
                 </div>
                 <GraficoPizza dados={impositivas} total={totalImpositivas} />
               </section>
@@ -177,6 +209,7 @@ export default function App() {
                     <p className="painel-sub">Somente UO do Exército (Comando do Exército e IMBEL)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalCMilA)}</span>
+                  <BotaoPNG titulo="Impositivas por C Mil A" contexto={contextoExport} />
                 </div>
                 <GraficoBarras dados={impCMilA} />
               </section>
@@ -187,7 +220,11 @@ export default function App() {
                     <h2>10 maiores autores</h2>
                     <p className="painel-sub">Deputados Federais e Senadores, por valor total</p>
                   </div>
-                  <span className="painel-total">{fmtMilhoes(totalAutores)}</span>
+                  <span className="painel-total">
+                    {fmtMilhoes(totalAutores)}
+                    <span className="painel-total-nota"> ({fmtPct(pctAutoresRP6)} do RP6)</span>
+                  </span>
+                  <BotaoPNG titulo="10 maiores autores" contexto={contextoExport} />
                 </div>
                 <GraficoBarrasSimples dados={autoresTop} />
               </section>
@@ -199,6 +236,7 @@ export default function App() {
                     <p className="painel-sub">Exclui comissões e bancadas (sem partido)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalPartidos)}</span>
+                  <BotaoPNG titulo="Emendas por partido" contexto={contextoExport} />
                 </div>
                 <GraficoPartidos dados={partidos} />
               </section>

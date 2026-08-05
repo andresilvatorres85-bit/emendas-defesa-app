@@ -59,7 +59,7 @@ export default function GraficoBarrasSimples({ dados }) {
           onMouseLeave={() => setHover(null)}
         >
           <span className="legenda-cor" style={{ background: COR_TIPO.Dep }} aria-hidden />
-          Dep · Deputado Federal
+          Deputado Federal
         </span>
         <span
           className="barras-legenda-item"
@@ -67,7 +67,7 @@ export default function GraficoBarrasSimples({ dados }) {
           onMouseLeave={() => setHover(null)}
         >
           <span className="legenda-cor" style={{ background: COR_TIPO.Sen }} aria-hidden />
-          Sen · Senador
+          Senador
         </span>
       </figcaption>
     </figure>

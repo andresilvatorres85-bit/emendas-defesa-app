@@ -110,25 +110,10 @@ body {
   display: flex; align-items: flex-start; gap: 0.9rem;
   max-width: 1560px; margin: 0 auto; width: 100%;
 }
-.marca {
-  flex: none; width: 2.6rem; height: 2.6rem; border-radius: 10px;
-  display: grid; place-items: center;
-  background: var(--cab-vidro); border: 1px solid rgba(255, 255, 255, 0.22);
-  font-size: 0.85rem; font-weight: 800; letter-spacing: 0.04em;
-}
 .cabecalho-texto { min-width: 0; }
 .cabecalho h1 {
   margin: 0; font-size: 1.15rem; line-height: 1.25;
   font-weight: 700; letter-spacing: -0.01em;
-}
-.cabecalho-meta {
-  margin: 0.3rem 0 0; display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem;
-  font-size: 0.72rem; color: var(--cab-tinta-2);
-}
-.cabecalho-meta span { display: inline-flex; align-items: center; gap: 0.35rem; }
-.cabecalho-meta span + span::before {
-  content: ''; width: 3px; height: 3px; border-radius: 50%;
-  background: currentColor; opacity: 0.6;
 }
 
 /* alternador de tema */
@@ -237,6 +222,19 @@ body {
 }
 .limpar-tudo { align-self: center; font-weight: 700; }
 
+/* botão "Exportar PDF" — fica na barra de filtros, junto do recorte que ele
+   imprime, e é sólido para se separar dos seletores */
+.btn-pdf {
+  appearance: none; cursor: pointer; font: inherit;
+  font-size: 0.76rem; font-weight: 700; line-height: 1;
+  padding: 0.44rem 0.75rem; margin-left: auto; align-self: center;
+  border: 1px solid var(--acento); border-radius: 999px;
+  background: var(--acento); color: light-dark(#fff, #06110c);
+  white-space: nowrap;
+}
+.btn-pdf:hover { filter: brightness(1.06); }
+.btn-pdf:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
 /* ======================================================== conteúdo ======== */
 .conteudo {
   flex: 1; padding: 1.1rem; max-width: 1560px; width: 100%; margin: 0 auto;
@@ -311,15 +309,19 @@ body {
   background: var(--superficie); border: 1px solid var(--borda);
   border-radius: var(--r-g); box-shadow: var(--sombra);
   padding: 1.1rem 1.2rem 1.2rem;
-  min-width: 0;
+  min-width: 0; position: relative;
 }
 .painel-cab {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 0.35rem 1rem; flex-wrap: wrap;
+  /* espaço reservado no canto para o botão PNG, que é posicionado */
+  padding-right: 3.1rem;
   margin-bottom: 0.9rem; padding-bottom: 0.7rem;
   border-bottom: 1px solid var(--hairline);
 }
-.painel-cab-txt { min-width: 0; display: grid; gap: 0.22rem; }
+/* No celular o título fica com a linha inteira e o total desce para a linha
+   de baixo; em telas largas (≥640px) a base 0 mantém os dois lado a lado. */
+.painel-cab-txt { min-width: 0; flex: 1 1 auto; display: grid; gap: 0.22rem; }
 .painel-grafico h2 {
   margin: 0; font-size: 0.92rem; font-weight: 700;
   letter-spacing: 0.07em; text-transform: uppercase; color: var(--tinta);
@@ -331,18 +333,36 @@ body {
 }
 .painel-sub { margin: 0; font-size: 0.76rem; color: var(--tinta-fraca); }
 .painel-total {
-  flex: none; font-size: 0.82rem; font-weight: 700; color: var(--tinta-2);
+  flex: none; margin-left: auto; font-size: 0.82rem; font-weight: 700; color: var(--tinta-2);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+/* o percentual ao lado do total é contexto, não o número principal */
+.painel-total-nota { font-weight: 600; color: var(--tinta-fraca); }
+
+/* botão de exportar o card em PNG — discreto até o cursor chegar perto */
+.btn-png {
+  appearance: none; cursor: pointer; font: inherit;
+  position: absolute; top: 1.05rem; right: 1.2rem;
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+  line-height: 1; padding: 0.3rem 0.5rem;
+  border: 1px solid var(--borda); border-radius: 999px;
+  background: var(--superficie-2); color: var(--tinta-fraca);
+  transition: color 0.12s, border-color 0.12s;
+}
+.painel-grafico:hover .btn-png { color: var(--tinta-2); }
+.btn-png:hover { color: var(--acento); border-color: var(--acento); }
+.btn-png:disabled { cursor: progress; opacity: 0.6; }
+.btn-png:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 
 /* --------------------------------------------------- rosca (donut) ------- */
 .pizza { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
-.pizza svg { width: 100%; max-width: 480px; height: auto; }
-.pizza-rotulo text { font-size: 13px; fill: var(--tinta-2); }
+.pizza svg { width: 100%; max-width: 560px; height: auto; }
+.pizza-rotulo text { font-size: 17px; font-weight: 700; fill: var(--tinta); }
+.pizza-rotulo-pct { font-weight: 600; fill: var(--tinta-fraca); }
 .pizza-centro-valor { font-size: 30px; font-weight: 700; fill: var(--tinta); }
 .pizza-centro-sub { font-size: 11.5px; fill: var(--tinta-fraca); }
 .pizza-centro-nome { font-size: 12.5px; font-weight: 600; fill: var(--tinta-2); }
-.pizza-legenda { display: flex; flex-direction: column; gap: 0.15rem; width: 100%; max-width: 480px; }
+.pizza-legenda { display: flex; flex-direction: column; gap: 0.15rem; width: 100%; max-width: 560px; }
 .legenda-item {
   display: flex; align-items: center; gap: 0.55rem; font-size: 0.86rem;
   padding: 0.28rem 0.4rem; border-radius: var(--r-p);
@@ -615,12 +635,12 @@ body {
 @media (min-width: 640px) {
   .cabecalho { padding: 1.2rem 1.6rem 0; }
   .cabecalho h1 { font-size: 1.35rem; }
-  .cabecalho-meta { font-size: 0.76rem; }
   .filtros { padding: 0.65rem 1.6rem; }
   .conteudo { padding: 1.4rem 1.6rem; }
   .cards-incons { grid-template-columns: repeat(4, 1fr); }
   .grade { grid-template-columns: repeat(2, 1fr); }
   .pizza { flex-direction: row; justify-content: center; align-items: center; gap: 1.6rem; }
+  .painel-cab-txt { flex: 1 1 0; }
 }
 @media (min-width: 1024px) {
   .destaque { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.6fr); align-items: stretch; }
@@ -643,4 +663,67 @@ body {
 /* quem pediu menos movimento não recebe transições de largura */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+}
+
+/* =========================================== folha A4 (Exportar PDF) ======
+   O cabeçalho de folha só existe no papel; na tela ele fica fora do fluxo. */
+.folha-cab { display: none; }
+
+@media print {
+  /* Todo o sistema de cores é light-dark(): forçar o color-scheme usado para
+     "light" já converte cada token para a versão de papel, sem paleta extra. */
+  :root, :root[data-tema='claro'], :root[data-tema='escuro'] { color-scheme: light; }
+
+  @page { size: A4 portrait; margin: 12mm 10mm; }
+
+  html, body { background: #fff; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* fora do papel: navegação, controles e os próprios botões de exportação */
+  .cabecalho, .filtros, .rodape, .abas, .tema, .btn-pdf, .btn-png,
+  [data-sem-exportar] { display: none !important; }
+
+  .app { display: block; }
+  .conteudo { padding: 0; max-width: none; }
+
+  .folha-cab { display: block; margin: 0 0 6mm; }
+  .folha-cab h2 {
+    margin: 0 0 1.5mm; font-size: 15pt; font-weight: 800;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .folha-cab p { margin: 0.6mm 0; font-size: 8pt; color: #444; }
+
+  /* uma coluna: cada card ocupa a largura da folha e nunca parte no meio */
+  .destaque, .tiras, .paineis { display: block; }
+  .destaque { margin-bottom: 4mm; }
+  .heroi, .tira, .painel-grafico {
+    break-inside: avoid; page-break-inside: avoid;
+    box-shadow: none; margin: 0 0 4mm;
+    border: 1px solid #d8d8d4; border-radius: 6px;
+  }
+  .tiras { display: flex; gap: 4mm; }
+  .tiras > * { flex: 1 1 0; }
+
+  .painel-grafico { padding: 4mm 5mm 5mm; }
+  .painel-grafico h2 { font-size: 10pt; }
+  .painel-sub, .painel-total { font-size: 8pt; }
+
+  /* os gráficos ficam no tamanho da folha, não no da tela — e mais compactos,
+     para que caibam dois cards por página em vez de um só com folga */
+  .pizza { flex-direction: column; gap: 0.4rem; }
+  .pizza svg { max-width: 112mm; }
+  .pizza-legenda { max-width: 130mm; }
+  .legenda-item { padding: 0.12rem 0.3rem; font-size: 8.5pt; }
+  .heroi-valor { font-size: 26pt; }
+  .tira-valor { font-size: 15pt; }
+
+  :root { --barra-h: 11px; }
+  .ranking-trilho { height: 10px; }
+  .cmila-lista { gap: 0.5rem; }
+  .ranking-lista { gap: 0.45rem; }
+  .cmila-item, .ranking-item { gap: 0.18rem; }
+  /* a lista de partidos é longa: duas colunas evitam uma página quase vazia */
+  .partidos .ranking-lista { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 8mm; }
+
+  a[href]::after { content: none !important; }
 }
