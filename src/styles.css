@@ -433,6 +433,112 @@ body {
   font-size: 0.76rem; font-weight: 600; color: var(--tinta-2); cursor: default;
 }
 
+/* =========================================== aba Histórico =============== */
+.historico-intro {
+  margin: 0 0 0.9rem; font-size: 0.84rem; line-height: 1.5; color: var(--tinta-2);
+  max-width: 62rem;
+}
+
+/* Um cartão por exercício. Grid fluido: com 4 anos cabe tudo numa linha em
+   telas largas e vira coluna única no celular, sem media query. */
+.historico-anos {
+  display: grid; gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.ano-card {
+  background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: var(--r-g); box-shadow: var(--sombra); padding: 1rem 1.1rem;
+}
+.ano-card-ano {
+  margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--tinta-fraca); font-variant-numeric: tabular-nums;
+}
+.ano-card-valor {
+  margin: 0.3rem 0 0; font-size: 1.85rem; font-weight: 800; line-height: 1.05;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--tinta);
+}
+.ano-card-unidade { font-size: 0.55em; font-weight: 700; color: var(--tinta-fraca); margin-left: 0.22em; }
+.ano-card-var { margin: 0.35rem 0 0; font-size: 0.74rem; font-weight: 700; }
+/* a seta e o sinal repetem o que a cor diz — a variação nunca é só cor */
+.var-sobe { color: light-dark(#0a6b4a, #4cc79a); }
+.var-desce { color: light-dark(#a83a2c, #e88b7c); }
+.var-nula { color: var(--tinta-fraca); font-weight: 600; }
+.ano-card-linhas {
+  margin: 0.8rem 0 0; padding-top: 0.7rem; border-top: 1px solid var(--hairline);
+  display: grid; gap: 0.28rem; font-size: 0.78rem;
+}
+.ano-card-linhas > div { display: flex; justify-content: space-between; gap: 0.6rem; }
+.ano-card-linhas dt { color: var(--tinta-fraca); }
+.ano-card-linhas dd {
+  margin: 0; font-weight: 700; color: var(--tinta-2); font-variant-numeric: tabular-nums;
+}
+.ano-card-pct { font-weight: 600; color: var(--tinta-fraca); }
+
+/* ------------------------------------------ colunas por exercício -------- */
+/* O ano é uma dimensão ordenada: vai na posição (eixo x), nunca na cor. */
+.colunas { margin: 0; }
+.colunas-plot {
+  display: grid; grid-template-columns: repeat(var(--n-anos), minmax(0, 1fr));
+  gap: 0.5rem; align-items: end;
+}
+.colunas-ano { display: grid; gap: 0.35rem; min-width: 0; }
+/* O rótulo do total pode ocupar duas linhas ("R$ 879,2 mi (10,2%)") sem
+   desalinhar as colunas: a caixa tem altura fixa e o texto encosta embaixo. */
+.colunas-total {
+  display: flex; align-items: flex-end; justify-content: center;
+  min-height: 2.3em; line-height: 1.15; text-align: center;
+  font-size: 0.72rem; font-weight: 700; color: var(--tinta-2);
+  font-variant-numeric: tabular-nums;
+}
+.colunas-trilho { height: 168px; display: flex; align-items: flex-end; }
+.colunas-pilha {
+  width: 100%; display: flex; flex-direction: column-reverse;
+  /* folga de 2px na cor da superfície entre segmentos — separação por espaço,
+     nunca por borda */
+  gap: 2px; border-radius: 4px 4px 0 0; overflow: hidden; min-height: 2px;
+}
+.colunas-seg { display: block; width: 100%; min-height: 2px; transition: opacity 0.12s; }
+.colunas-grupo {
+  width: 100%; height: 100%; display: flex; align-items: flex-end;
+  justify-content: center; gap: 2px;
+}
+.colunas-barra {
+  flex: 1 1 0; max-width: 3.2rem; min-height: 2px;
+  border-radius: 4px 4px 0 0; transition: opacity 0.12s;
+}
+.colunas-rotulo {
+  text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--tinta);
+  font-variant-numeric: tabular-nums; padding-top: 0.35rem;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ------------------------------------------ matriz categoria x ano ------- */
+/* Onde as categorias são muitas para uma paleta honesta, o ano vira COLUNA.
+   Um tom só; a magnitude é o comprimento da barra. */
+.matriz-rolagem { overflow-x: auto; margin: 0 -0.2rem; padding: 0 0.2rem; }
+.matriz-dica { margin: 0 0 0.5rem; font-size: 0.72rem; color: var(--tinta-fraca); }
+@media (min-width: 640px) { .matriz-dica { display: none; } }
+.matriz {
+  width: 100%; border-collapse: collapse; font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.matriz th, .matriz td { text-align: right; padding: 0.42rem 0.5rem; }
+.matriz thead th {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--tinta-fraca); border-bottom: 1px solid var(--borda); white-space: nowrap;
+}
+.matriz tbody tr + tr th, .matriz tbody tr + tr td { border-top: 1px solid var(--hairline); }
+.matriz .matriz-cat { text-align: left; font-weight: 600; color: var(--tinta); }
+.matriz-nome { display: block; line-height: 1.25; }
+.matriz-sub { display: block; font-size: 0.68rem; font-weight: 500; color: var(--tinta-fraca); }
+.matriz-celula { min-width: 5.6rem; }
+.matriz-valor { display: block; font-weight: 600; color: var(--tinta-2); white-space: nowrap; }
+.matriz-celula.vazia .matriz-valor { color: var(--tinta-fraca); font-weight: 500; }
+.matriz-trilho { display: block; margin-top: 0.22rem; height: 3px; background: var(--hairline); border-radius: 2px; }
+.matriz-fill { display: block; height: 100%; background: var(--serie-azul); border-radius: 2px; }
+.matriz td.matriz-total .matriz-valor { color: var(--tinta); font-weight: 800; }
+.matriz th.matriz-total, .matriz td.matriz-total { border-left: 1px solid var(--borda); }
+
 /* ------------------------------------------ ranking horizontal ----------- */
 .ranking { margin: 0; }
 .ranking-lista {

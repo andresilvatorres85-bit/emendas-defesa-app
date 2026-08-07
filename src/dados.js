@@ -7,18 +7,43 @@
 
 export const RP_LABEL = (cod) => (cod ? `RP${cod}` : '—')
 
+// Cores por identidade do RP (RP fixo -> cor fixa; nunca reatribuídas quando o
+// filtro muda o nº de fatias). Paleta categórica validada (CVD-safe) em modo
+// claro e escuro. Vive aqui — e não no gráfico — porque a rosca do Dashboard,
+// o comparativo do Histórico e a exportação PPTX precisam da MESMA cor para o
+// mesmo RP: é a identidade do dado, não uma escolha de um gráfico.
+const COR_RP = {
+  2: { claro: '#2a78d6', escuro: '#3987e5' },
+  3: { claro: '#008300', escuro: '#008300' },
+  6: { claro: '#e87ba4', escuro: '#d55181' },
+  7: { claro: '#eda100', escuro: '#c98500' },
+  8: { claro: '#1baf7a', escuro: '#199e70' },
+}
+const COR_EXTRA = [
+  { claro: '#eb6834', escuro: '#d95926' },
+  { claro: '#4a3aa7', escuro: '#9085e9' },
+  { claro: '#e34948', escuro: '#e66767' },
+]
+
+export function corDoRP(rp) {
+  const c = COR_RP[rp] || COR_EXTRA[Math.abs(String(rp).charCodeAt(0)) % COR_EXTRA.length]
+  return `light-dark(${c.claro}, ${c.escuro})`
+}
+
 // Órgão consolidado por UO (Cod): agrupa todas as UO de cada Força/MD.
 // Permite filtrar os dados consolidados por Exército, Aeronáutica, Marinha e
 // Ministério da Defesa (órgãos conjuntos: Adm. Direta e Fundo do HFA).
 export const UO_ORGAO = {
   '52121': 'EXÉRCITO',
   '52221': 'EXÉRCITO',
+  '52921': 'EXÉRCITO', // Fundo do Exército — só aparece em 2023
   '52111': 'AERONÁUTICA',
   '52911': 'AERONÁUTICA',
   '52131': 'MARINHA',
   '52931': 'MARINHA',
   '52932': 'MARINHA',
   '52133': 'MARINHA',
+  '52232': 'MARINHA', // CCCPM — só aparece em 2023
   '52101': 'MINISTÉRIO DA DEFESA',
   '52902': 'MINISTÉRIO DA DEFESA',
 }
@@ -26,7 +51,10 @@ export const orgaoDeUO = (uoCod) => UO_ORGAO[String(uoCod)] || 'MINISTÉRIO DA D
 
 // Definição dos filtros, na ordem de exibição.
 // `campo` é a chave do registro no dados.json; `rotulo` é o texto exibido.
+// "Ano" vem primeiro por ser o recorte mais amplo: ele decide o exercício
+// sobre o qual todos os outros filtros operam.
 export const FILTROS = [
+  { id: 'ano',       campo: 'ano',        rotulo: 'Ano' },
   { id: 'orgao',     campo: 'orgao',      rotulo: 'Órgão' },
   { id: 'uo',        campo: 'uo',         rotulo: 'UO' },
   { id: 'uocod',     campo: 'uoCod',      rotulo: 'UO (Cod)' },
@@ -302,7 +330,7 @@ export const C_MIL_A_NOME = {
 
 // UO do Exército (o C Mil A é uma estrutura do Exército, portanto o comparativo
 // por comando considera apenas estas UO): Comando do Exército e IMBEL.
-export const UO_EXERCITO = new Set(['52121', '52221'])
+export const UO_EXERCITO = new Set(['52121', '52221', '52921'])
 
 // Comparativo por C Mil A: total impositivo RP6, RP7 e a soma (RP6+RP7) de
 // cada comando, considerando SOMENTE as UO do Exército. Só entram comandos com
@@ -399,6 +427,175 @@ export function valorImpositivas(registros) {
   })
 
   return fatias
+}
+
+// ---------------------------------------------------------------------------
+// Aba "Histórico" — comparativos entre exercícios
+// ---------------------------------------------------------------------------
+// Todas as funções desta seção recebem os registros JÁ filtrados por tudo
+// MENOS o Ano (ver `filtrarRegistros(registros, filtros, 'ano')` no App): a
+// aba compara anos, então filtrar por ano aqui esvaziaria a comparação — mas
+// filtrar por UO, Força ou C Mil A é justamente o que permite perguntar
+// "como evoluiu o Exército?" sem sair da aba.
+
+export const anosPresentes = (registros) =>
+  [...new Set(registros.map((r) => String(r.ano)))].filter(Boolean).sort()
+
+// Um card por exercício: valor, emendas, parlamentares, impositivas e a
+// variação em relação ao ano anterior da própria série.
+export function resumoPorAno(registros) {
+  const anos = anosPresentes(registros)
+  const porAno = new Map(anos.map((a) => [a, []]))
+  for (const r of registros) porAno.get(String(r.ano))?.push(r)
+
+  return anos.map((ano, i, todos) => {
+    const itens = porAno.get(ano)
+    const impositivo = itens
+      .filter((r) => String(r.rp) === '6' || String(r.rp) === '7')
+      .reduce((s, r) => s + r.valor, 0)
+    const valor = itens.reduce((s, r) => s + r.valor, 0)
+    const anterior = i > 0 ? porAno.get(todos[i - 1]).reduce((s, r) => s + r.valor, 0) : null
+    return {
+      ano,
+      valor,
+      qtdRegistros: itens.length,
+      qtdEmendas: new Set(itens.map((r) => r.emenda)).size,
+      qtdParlamentares: new Set(itens.map((r) => r.autor)).size,
+      impositivo,
+      pctImpositivo: valor ? (impositivo / valor) * 100 : 0,
+      // variação percentual sobre o ano anterior; null no primeiro ano
+      variacao: anterior ? ((valor - anterior) / anterior) * 100 : null,
+    }
+  })
+}
+
+// Núcleo compartilhado: soma `valor` por (categoria, ano).
+// `categoria(r)` devolve a chave da categoria ou null para descartar o registro.
+function cruzarAnoCategoria(registros, categoria) {
+  const anos = anosPresentes(registros)
+  const idx = new Map(anos.map((a, i) => [a, i]))
+  const linhas = new Map()
+  for (const r of registros) {
+    const c = categoria(r)
+    if (c === null || c === undefined || c === '') continue
+    const chave = typeof c === 'object' ? c.chave : String(c)
+    if (!linhas.has(chave)) {
+      linhas.set(chave, {
+        chave,
+        rotulo: typeof c === 'object' ? c.rotulo : String(c),
+        sub: typeof c === 'object' ? c.sub || '' : '',
+        cor: typeof c === 'object' ? c.cor : undefined,
+        valores: anos.map(() => 0),
+        emendas: anos.map(() => new Set()),
+      })
+    }
+    const linha = linhas.get(chave)
+    const i = idx.get(String(r.ano))
+    if (i === undefined) continue
+    linha.valores[i] += r.valor
+    linha.emendas[i].add(r.emenda)
+  }
+  const series = [...linhas.values()].map((l) => ({
+    ...l,
+    qtds: l.emendas.map((s) => s.size),
+    total: l.valores.reduce((s, v) => s + v, 0),
+  }))
+  series.forEach((l) => delete l.emendas)
+  return { anos, series: series.sort((a, b) => b.total - a.total) }
+}
+
+// Composição por RP em cada ano (cores de identidade do RP, iguais às da rosca).
+export function rpPorAno(registros) {
+  const { anos, series } = cruzarAnoCategoria(registros, (r) => ({
+    chave: String(r.rp),
+    rotulo: RP_LABEL(r.rp),
+    cor: corDoRP(r.rp),
+  }))
+  // ordem do RP (e não do valor): a leitura da composição fica estável entre anos
+  return { anos, series: series.sort((a, b) => a.chave.localeCompare(b.chave, 'pt-BR', { numeric: true })) }
+}
+
+// Composição por modalidade da emenda (individual, bancada, comissão).
+const COR_MODALIDADE = {
+  INDIVIDUAL: 'light-dark(#2a78d6, #3987e5)',
+  'BANCADA ESTADUAL': 'light-dark(#eb6834, #d95926)',
+  COMISSÃO: 'light-dark(#1baf7a, #199e70)',
+}
+const ORDEM_MODALIDADE = ['INDIVIDUAL', 'BANCADA ESTADUAL', 'COMISSÃO']
+
+export function modalidadePorAno(registros) {
+  const { anos, series } = cruzarAnoCategoria(registros, (r) => ({
+    chave: r.modalidade,
+    rotulo: tituloBR(r.modalidade),
+    cor: COR_MODALIDADE[r.modalidade] || 'light-dark(#7c7a74, #918f88)',
+  }))
+  const pos = (c) => {
+    const i = ORDEM_MODALIDADE.indexOf(c)
+    return i === -1 ? ORDEM_MODALIDADE.length : i
+  }
+  return { anos, series: series.sort((a, b) => pos(a.chave) - pos(b.chave)) }
+}
+
+// Impositivas (RP6 + RP7) por ano, com o percentual que representam do total.
+export function impositivasPorAno(registros) {
+  const { anos, series } = cruzarAnoCategoria(registros, (r) =>
+    String(r.rp) === '6' || String(r.rp) === '7'
+      ? { chave: `rp${r.rp}`, rotulo: RP_LABEL(r.rp), cor: corDoRP(r.rp) }
+      : null
+  )
+  const totalAno = anos.map((ano) =>
+    registros.filter((r) => String(r.ano) === ano).reduce((s, r) => s + r.valor, 0)
+  )
+  const ordem = { rp6: 0, rp7: 1 }
+  return {
+    anos,
+    totalAno,
+    series: series.sort((a, b) => (ordem[a.chave] ?? 9) - (ordem[b.chave] ?? 9)),
+  }
+}
+
+// Matrizes (linhas = categoria, colunas = ano) — usadas onde há categorias
+// demais para caber numa paleta categórica honesta: Força, C Mil A, partidos e
+// autores. O ano é lido pela COLUNA, não pela cor.
+export function forcaPorAno(registros) {
+  return cruzarAnoCategoria(registros, (r) => r.orgao)
+}
+
+export function cmilaPorAno(registros) {
+  return cruzarAnoCategoria(registros, (r) =>
+    UO_EXERCITO.has(String(r.uoCod)) && (String(r.rp) === '6' || String(r.rp) === '7')
+      ? { chave: r.cmila, rotulo: C_MIL_A_NOME[r.cmila] || r.cmila, sub: r.cmila }
+      : null
+  )
+}
+
+export function partidosPorAno(registros, n = 12) {
+  const m = cruzarAnoCategoria(registros, (r) => {
+    const p = (r.partido || '').trim()
+    return !p || p === 'S/PARTIDO' ? null : p
+  })
+  return { ...m, series: m.series.slice(0, n) }
+}
+
+// Autores recorrentes: parlamentares (exclui comissões e bancadas) ordenados
+// primeiro pelo nº de exercícios em que apresentaram emenda e depois pelo valor
+// — a pergunta é "quem está sempre presente", não "quem pediu mais uma vez".
+export function autoresRecorrentes(registros, n = 12) {
+  const m = cruzarAnoCategoria(registros, (r) =>
+    AUTOR_TIPO_SIGLA[r.autorTipo]
+      ? {
+          chave: r.autor,
+          rotulo: tituloBR(r.autor),
+          sub: [r.autorTipo === 'SENADOR' ? 'Senador' : 'Dep. Federal', r.autorUF !== 'NA' ? r.autorUF : '']
+            .filter(Boolean).join(' · '),
+        }
+      : null
+  )
+  const comAnos = m.series.map((s) => ({ ...s, nAnos: s.valores.filter((v) => v > 0).length }))
+  return {
+    ...m,
+    series: comAnos.sort((a, b) => b.nAnos - a.nAnos || b.total - a.total).slice(0, n),
+  }
 }
 
 // ---------------------------------------------------------------------------

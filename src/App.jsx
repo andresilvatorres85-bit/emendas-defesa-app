@@ -15,24 +15,39 @@ import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
 import GraficoPartidos from './components/GraficoPartidos.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
 import AbaInconsistencias from './components/AbaInconsistencias.jsx'
+import AbaHistorico from './components/AbaHistorico.jsx'
 
 const ABAS = [
   { id: 'dashboard', rotulo: 'Dashboard' },
   { id: 'emendas', rotulo: 'Emendas' },
+  { id: 'historico', rotulo: 'Histórico' },
   { id: 'inconsistencias', rotulo: 'Inconsistências' },
 ]
 
 export default function App() {
   const [dados, setDados] = useState(null)
   const [erro, setErro] = useState(null)
-  const { aba, detalhe, filtros, irParaAba, abrirDetalhe, setFiltro, limparFiltros } = useUrlState()
+  const {
+    aba, detalhe, filtros,
+    irParaAba, abrirDetalhe, setFiltro, limparFiltros, definirPadrao, noPadrao,
+  } = useUrlState()
 
   useEffect(() => {
     carregarDados().then(setDados).catch((e) => setErro(e.message))
   }, [])
 
+  // O app abre no exercício mais recente da planilha: sem esse padrão, o
+  // Dashboard somaria todos os anos de uma vez, o que não é a pergunta que
+  // alguém faz ao abrir um painel do PLOA. O ano vem do próprio dado, então
+  // acrescentar 2027 à planilha basta para o app abrir em 2027.
+  useEffect(() => {
+    if (dados?.anoCorrente) definirPadrao('ano', [dados.anoCorrente])
+  }, [dados, definirPadrao])
+
   const registros = dados?.registros ?? []
   const filtrados = useMemo(() => filtrarRegistros(registros, filtros), [registros, filtros])
+  // A aba Histórico compara exercícios — ela é a única que ignora o filtro de Ano.
+  const semAno = useMemo(() => filtrarRegistros(registros, filtros, 'ano'), [registros, filtros])
   const grupos = useMemo(() => agruparPorEmenda(filtrados), [filtrados])
   const gruposIncons = useMemo(() => grupos.filter((g) => g.inconsistencias.length > 0), [grupos])
   const stats = useMemo(() => resumo(filtrados), [filtrados])
@@ -42,7 +57,9 @@ export default function App() {
   const impCMilA = useMemo(() => impositivasPorCMilA(filtrados), [filtrados])
   const autoresTop = useMemo(() => topAutores(filtrados, 10), [filtrados])
   const partidos = useMemo(() => valorPorPartido(filtrados), [filtrados])
-  const temFiltro = FILTROS.some((f) => filtros[f.id]?.size > 0)
+  // "Limpar filtros" só faz sentido se algum filtro estiver fora do padrão —
+  // o Ano começa preenchido e sozinho não conta como filtro do usuário.
+  const temFiltro = FILTROS.some((f) => !noPadrao(f.id, filtros[f.id]))
 
   if (erro) {
     return <main className="carregando">Erro ao carregar os dados: {erro}</main>
@@ -64,16 +81,32 @@ export default function App() {
 
   // Texto do recorte: vai no rodapé de cada PNG e no cabeçalho da folha A4,
   // para que a imagem/página exportada diga sozinha o que está mostrando.
+  // O Ano sai na frente e sempre — é o recorte que muda mais e o que faz uma
+  // imagem solta ser interpretável meses depois.
+  const anosSel = [...(filtros.ano ?? [])].sort()
+  const anoTexto = anosSel.length
+    ? `Exercício ${anosSel.join(', ')}`
+    : `Todos os exercícios (${(dados.anos ?? []).join(', ')})`
   const filtrosAtivos = FILTROS
-    .filter((f) => filtros[f.id]?.size > 0)
+    .filter((f) => f.id !== 'ano' && filtros[f.id]?.size > 0)
     .map((f) => `${f.rotulo}: ${[...filtros[f.id]].join(', ')}`)
   const recorte = filtrosAtivos.length
-    ? `Filtros — ${filtrosAtivos.join(' · ')}`
-    : 'Sem filtros — todas as emendas apresentadas'
-  const escopo = 'Ministério da Defesa · Órgão 52000 · Setor 13'
+    ? `${anoTexto} · filtros — ${filtrosAtivos.join(' · ')}`
+    : `${anoTexto} · sem outros filtros`
+  const escopo = 'Ministério da Defesa · Órgão 52000 · Setor Defesa'
   const contextoExport =
     `Emendas ao PLOA — ${escopo}. ${recorte}. ` +
     `${fmtInt(stats.qtdEmendas)} emendas · ${fmtBRL(stats.valorTotal)}. ` +
+    `Extraído em ${new Date().toLocaleString('pt-BR')}.`
+  // A aba Histórico ignora o filtro de Ano, então o rodapé dos PNG dela
+  // precisa dizer isso — senão a imagem sai carimbada com um ano só.
+  const recorteHistorico = filtrosAtivos.length
+    ? `Todos os exercícios (${(dados.anos ?? []).join(', ')}) · filtros — ${filtrosAtivos.join(' · ')}`
+    : `Todos os exercícios (${(dados.anos ?? []).join(', ')}) · sem outros filtros`
+  const contextoHistorico =
+    `Emendas ao PLOA — ${escopo}. ${recorteHistorico}. ` +
+    `${fmtInt(new Set(semAno.map((r) => r.emenda)).size)} emendas · ` +
+    `${fmtBRL(semAno.reduce((s, r) => s + r.valor, 0))}. ` +
     `Extraído em ${new Date().toLocaleString('pt-BR')}.`
 
   // Carga do PPTX: os mesmos números que estão na tela, já filtrados. Montada
@@ -87,7 +120,7 @@ export default function App() {
       geradoEm: new Date().toLocaleString('pt-BR'),
       fonte: dados.fonte,
       stats,
-      qtdRegistros: registros.length,
+      qtdRegistros: filtrados.length,
       totalImpositivas,
       pctImpositivas,
       porRP,
@@ -162,7 +195,7 @@ export default function App() {
             {/* só aparece na impressão / PDF */}
             <header className="folha-cab">
               <h2>EMENDAS APRESENTADAS AO PLOA</h2>
-              <p>Ministério da Defesa · Órgão 52000 · Setor 13</p>
+              <p>{escopo}</p>
               <p>{recorte}</p>
               <p>Extraído em {new Date().toLocaleString('pt-BR')} · fonte: {dados.fonte}</p>
             </header>
@@ -175,9 +208,11 @@ export default function App() {
                   {heroi.unidade && <span className="heroi-unidade">{heroi.unidade}</span>}
                 </p>
                 <p className="heroi-exato">{fmtBRL(stats.valorTotal)}</p>
+                {/* o denominador é o do RECORTE (não o da base inteira): com
+                    vários exercícios carregados, "em 1.636 registros" ao lado
+                    de "370 emendas" comparava anos diferentes */}
                 <p className="heroi-nota">
-                  {temFiltro ? 'Recorte filtrado' : 'Todas as emendas apresentadas'} ·
-                  {' '}{fmtInt(stats.qtdEmendas)} emendas em {fmtInt(registros.length)} registros
+                  {anoTexto} · {fmtInt(stats.qtdEmendas)} emendas em {fmtInt(filtrados.length)} registros
                 </p>
               </section>
 
@@ -232,7 +267,7 @@ export default function App() {
                 <div className="painel-cab">
                   <div className="painel-cab-txt">
                     <h2>Impositivas por C Mil A</h2>
-                    <p className="painel-sub">Somente UO do Exército (Comando do Exército e IMBEL)</p>
+                    <p className="painel-sub">Somente UO do Exército (Comando do Exército, IMBEL e Fundo do Exército)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalCMilA)}</span>
                   <BotaoPNG titulo="Impositivas por C Mil A" contexto={contextoExport} />
@@ -284,6 +319,12 @@ export default function App() {
               ))}
             </div>
             {grupos.length === 0 && <p className="vazio">Nenhuma emenda para os filtros aplicados.</p>}
+          </section>
+        )}
+
+        {aba === 'historico' && (
+          <section aria-label="Histórico">
+            <AbaHistorico registros={semAno} contexto={contextoHistorico} />
           </section>
         )}
 

@@ -11,8 +11,7 @@
 //   3. construtores de forma, caixa de texto e gráfico (DrawingML);
 //   4. a montagem dos 7 slides a partir dos dados do Dashboard filtrado.
 
-import { corDoRP } from './components/GraficoPizza.jsx'
-import { fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto } from './dados.js'
+import { corDoRP, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto } from './dados.js'
 import { baixar, nomeArquivo } from './exportar.js'
 
 // ------------------------------------------------------------------ ZIP ---
@@ -639,7 +638,7 @@ function montarSlides(d) {
   ]
   s.push(slideGrafico(d, {
     titulo: 'Impositivas por C Mil A',
-    sub: 'Somente UO do Exército (Comando do Exército e IMBEL)',
+    sub: 'Somente UO do Exército (Comando do Exército, IMBEL e Fundo do Exército)',
     total: fmtMilhoes(d.totalCMilA),
     grafico: graficoBarras({ cats: catsC, series: serieC, empilhado: true, legenda: true }),
     planilha: planilha(catsC, serieC),

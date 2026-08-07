@@ -1,26 +1,7 @@
 import { useMemo, useState } from 'react'
-import { fmtMilhoes, fmtPct } from '../dados.js'
-
-// Cores por identidade (RP fixo -> cor fixa; nunca reatribuídas quando o
-// filtro muda o nº de fatias). Paleta categórica validada (CVD-safe) em
-// modo claro e escuro.
-const COR_RP = {
-  2: { claro: '#2a78d6', escuro: '#3987e5' },
-  3: { claro: '#008300', escuro: '#008300' },
-  6: { claro: '#e87ba4', escuro: '#d55181' },
-  7: { claro: '#eda100', escuro: '#c98500' },
-  8: { claro: '#1baf7a', escuro: '#199e70' },
-}
-const COR_EXTRA = [
-  { claro: '#eb6834', escuro: '#d95926' },
-  { claro: '#4a3aa7', escuro: '#9085e9' },
-  { claro: '#e34948', escuro: '#e66767' },
-]
-
-export function corDoRP(rp) {
-  const c = COR_RP[rp] || COR_EXTRA[Math.abs(String(rp).charCodeAt(0)) % COR_EXTRA.length]
-  return `light-dark(${c.claro}, ${c.escuro})`
-}
+// As cores por RP vivem em dados.js: são identidade do dado, compartilhada com
+// o comparativo do Histórico e com a exportação PPTX.
+import { corDoRP, fmtMilhoes, fmtPct } from '../dados.js'
 
 const RAIO = 116
 const RAIO_INT = 82 // rosca fina: o centro carrega o total (ou a fatia sob o cursor)

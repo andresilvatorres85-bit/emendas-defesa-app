@@ -6,7 +6,7 @@
 //    para não poluir o histórico a cada clique em checkbox);
 //  - isolamento total entre abas/usuários (a URL e o estado são locais à aba).
 // ---------------------------------------------------------------------------
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { FILTROS } from './dados.js'
 
 const SEP = '|' // separador de múltiplos valores num mesmo parâmetro
@@ -14,14 +14,19 @@ const SEP = '|' // separador de múltiplos valores num mesmo parâmetro
 function lerUrl() {
   const p = new URLSearchParams(window.location.search)
   const filtros = {}
+  const naUrl = new Set()
   for (const f of FILTROS) {
     const bruto = p.get(f.id)
+    if (bruto !== null) naUrl.add(f.id)
     filtros[f.id] = new Set(bruto ? bruto.split(SEP).filter(Boolean) : [])
   }
   return {
     aba: p.get('aba') || 'dashboard',
     detalhe: p.get('det') || null,
     filtros,
+    // quais filtros vieram escritos na URL — um link compartilhado sempre
+    // vence o padrão (ver `definirPadrao`)
+    naUrl,
   }
 }
 
@@ -39,6 +44,10 @@ function montarUrl({ aba, detalhe, filtros }) {
 
 export function useUrlState() {
   const [estado, setEstado] = useState(lerUrl)
+  // Valores padrão de filtro (hoje só o Ano, que só é conhecido depois que o
+  // dados.json chega). Guardados fora do state para que "Limpar filtros"
+  // volte ao padrão em vez de esvaziar tudo.
+  const padroes = useRef({})
 
   // Botão voltar/avançar do navegador
   useEffect(() => {
@@ -71,15 +80,39 @@ export function useUrlState() {
     })
   }, [])
 
-  const limparFiltros = useCallback(() => {
+  // Define o valor inicial de um filtro. Só vale para quem abriu o app sem
+  // aquele parâmetro na URL: um link compartilhado (inclusive um que
+  // deliberadamente traga o filtro vazio) manda mais que o padrão. Aplicado
+  // com replaceState — o padrão não é um passo do histórico de navegação.
+  const definirPadrao = useCallback((id, valores) => {
+    if (padroes.current[id]) return
+    padroes.current[id] = new Set(valores)
     setEstado((e) => {
-      const vazio = {}
-      for (const f of FILTROS) vazio[f.id] = new Set()
-      const novo = { ...e, filtros: vazio }
+      if (e.naUrl.has(id)) return e
+      const novo = { ...e, filtros: { ...e.filtros, [id]: new Set(valores) } }
       window.history.replaceState(null, '', montarUrl(novo))
       return novo
     })
   }, [])
 
-  return { ...estado, irParaAba, abrirDetalhe, setFiltro, limparFiltros }
+  const limparFiltros = useCallback(() => {
+    setEstado((e) => {
+      const base = {}
+      for (const f of FILTROS) base[f.id] = new Set(padroes.current[f.id] ?? [])
+      const novo = { ...e, filtros: base }
+      window.history.replaceState(null, '', montarUrl(novo))
+      return novo
+    })
+  }, [])
+
+  // `padrao` deixa o App perguntar se um filtro está no valor padrão — é o que
+  // decide se o botão "Limpar filtros" aparece e se o recorte é o de sempre.
+  const noPadrao = useCallback((id, sel) => {
+    const p = padroes.current[id] ?? new Set()
+    if (p.size !== (sel?.size ?? 0)) return false
+    for (const v of p) if (!sel.has(v)) return false
+    return true
+  }, [])
+
+  return { ...estado, irParaAba, abrirDetalhe, setFiltro, limparFiltros, definirPadrao, noPadrao }
 }
