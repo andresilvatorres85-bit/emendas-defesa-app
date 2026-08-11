@@ -251,6 +251,63 @@ UO_FAMILIA = {
     "52101": None, "52902": None,  # neutras (órgãos conjuntos do MD)
 }
 FAMILIA_LABEL = {"MARINHA": "Marinha", "EXERCITO": "Exército", "AERONAUTICA": "Aeronáutica"}
+# Rótulo da Força usado no filtro "Órgão" do app.
+FAMILIA_ORGAO = {
+    "MARINHA": "MARINHA", "EXERCITO": "EXÉRCITO", "AERONAUTICA": "AERONÁUTICA",
+    None: "MINISTÉRIO DA DEFESA",
+}
+
+# ---------------------------------------------------------------------------
+# Classificação de UO ainda não catalogada
+# ---------------------------------------------------------------------------
+# Uma UO nova na planilha não pode virar "Ministério da Defesa" no silêncio —
+# ela sumiria dentro dos órgãos conjuntos e distorceria o comparativo por Força.
+# Três camadas, da mais forte para a mais fraca:
+#   1. UO_FAMILIA — catálogo conferido à mão, sempre vence;
+#   2. NOME da UO — "FUNDO NAVAL", "IMBEL", "FUNDO AERONÁUTICO" são inequívocos;
+#   3. ESTRUTURA DO CÓDIGO — dentro do órgão 52000 o 4º dígito identifica o
+#      Comando: 1=Aeronáutica, 2=Exército, 3=Marinha, 0=MD (órgão conjunto).
+#      Vale para as 12 UOs conhecidas (52111/52911, 52121/52221/52921,
+#      52131/52133/52232/52931/52932, 52101/52902).
+# Toda UO que não estiver no catálogo é registrada em `uosNaoCatalogadas`
+# (bloco `auditoria` do JSON) com a camada que a classificou.
+NOME_FAMILIA = [
+    (r"MARINHA|\bNAVAL\b|MARITIMO|RECURSOS DO MAR|FUZILEIROS|\bCCCPM\b|\bSECIRM\b", "MARINHA"),
+    (r"EXERCITO|\bIMBEL\b|BELICO", "EXERCITO"),
+    (r"AERONAUTICA|AEROESPACIAL|FORCA AEREA|\bAEREA\b", "AERONAUTICA"),
+]
+DIGITO_FAMILIA = {"0": None, "1": "AERONAUTICA", "2": "EXERCITO", "3": "MARINHA"}
+
+
+def familia_da_uo(uo_cod, uo_nome, registro_desconhecidas=None):
+    """Devolve a família (Força) de uma UO: MARINHA | EXERCITO | AERONAUTICA | None."""
+    cod = str(uo_cod or "").strip()
+    if cod in UO_FAMILIA:
+        return UO_FAMILIA[cod]
+
+    nome = _sem_acento(str(uo_nome or "")).upper()
+    for padrao, familia in NOME_FAMILIA:
+        if re.search(padrao, nome):
+            if registro_desconhecidas is not None:
+                registro_desconhecidas[cod] = {
+                    "uo": str(uo_nome or ""), "familia": FAMILIA_ORGAO[familia], "criterio": "nome",
+                }
+            return familia
+
+    if re.fullmatch(r"52\d{3}", cod):
+        familia = DIGITO_FAMILIA.get(cod[3])
+        if registro_desconhecidas is not None:
+            registro_desconhecidas[cod] = {
+                "uo": str(uo_nome or ""), "familia": FAMILIA_ORGAO[familia],
+                "criterio": "4º dígito do código",
+            }
+        return familia
+
+    if registro_desconhecidas is not None:
+        registro_desconhecidas[cod] = {
+            "uo": str(uo_nome or ""), "familia": FAMILIA_ORGAO[None], "criterio": "sem critério",
+        }
+    return None
 FAMILIA_UO_SUGERIDA = {
     "MARINHA": "52131 (Comando da Marinha) ou 52931 (Fundo Naval)",
     "EXERCITO": "52121 (Comando do Exército)",
@@ -420,7 +477,7 @@ def detectar_inconsistencias(registro, descartadas):
         })
 
     # --- Regra 2.B — UO x Justificativa -------------------------------------
-    familia_uo = UO_FAMILIA.get(uo_cod)
+    familia_uo = familia_da_uo(uo_cod, uo_nome)
     texto = " ".join(str(registro.get(c) or "") for c in
                      ("Ação", "Subtítulo", "Emenda (Justificativa)"))
     citadas = forcas_citadas(texto)
@@ -611,7 +668,7 @@ def ler_blocos(caminho_xlsx, desconhecidos):
     return [(ano, "exercicio", registros)]
 
 
-def normalizar(registro, idx, descartadas):
+def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None):
     """Converte um registro bruto no formato compacto consumido pelo app."""
     def s(col):
         v = registro.get(col)
@@ -626,10 +683,15 @@ def normalizar(registro, idx, descartadas):
     inconsistencias = detectar_inconsistencias(registro, descartadas)
     justificativa = s("Emenda (Justificativa)").replace("_x000D_", "\n").strip()
 
+    # A Força vem calculada do pipeline: é aqui que uma UO nova é classificada,
+    # em um lugar só, e o app apenas lê o campo.
+    orgao = FAMILIA_ORGAO[familia_da_uo(s("UO (Cod)"), s("UO"), uos_nao_catalogadas)]
+
     out = {
         "id": idx,
         "ano": str(registro.get("__ano") or ""),
         "emenda": s("Emenda"),
+        "orgao": orgao,
         "modalidade": s("Emenda (Modalidade)"),
         "tipo": s("Emenda (Tipo)"),
         "autor": s("Autor"),
@@ -700,7 +762,7 @@ def main():
 
     # 2) Normaliza ano a ano. A deduplicação é POR ANO: o mesmo número de
     #    emenda existe em exercícios diferentes e são emendas diferentes.
-    registros, descartadas = [], []
+    registros, descartadas, uos_nao_catalogadas = [], [], {}
     for ano in sorted(por_ano):
         vistos = set()
         for r in por_ano[ano][1]:
@@ -708,7 +770,7 @@ def main():
             if chave in vistos:
                 continue
             vistos.add(chave)
-            registros.append(normalizar(r, len(registros), descartadas))
+            registros.append(normalizar(r, len(registros), descartadas, uos_nao_catalogadas))
 
     anos = sorted({r["ano"] for r in registros})
     print("\nPor ano:")
@@ -717,6 +779,11 @@ def main():
         print(f"  {ano} ({por_ano[ano][0]}): {len(do_ano)} registros | "
               f"{len(set(r['emenda'] for r in do_ano))} emendas | "
               f"R$ {sum(r['valor'] for r in do_ano):,.2f}")
+
+    if uos_nao_catalogadas:
+        print("\nUO fora do catálogo (classificadas automaticamente — conferir):")
+        for cod, info in sorted(uos_nao_catalogadas.items()):
+            print(f"  {cod} {info['uo']} -> {info['familia']} (por {info['criterio']})")
 
     n_incons = sum(1 for r in registros if r.get("inconsistencias"))
     n_mod = sum(1 for r in registros
@@ -734,6 +801,7 @@ def main():
         "auditoria": {
             "modAplicEsperada": MOD_APLIC_ESPERADA,
             "revisadosDescartados": len(descartadas),
+            "uosNaoCatalogadas": uos_nao_catalogadas,
             "falsosPositivosConhecidos": FALSOS_POSITIVOS_CONHECIDOS,
         },
         "registros": registros,
