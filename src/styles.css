@@ -441,9 +441,11 @@ body {
 
 /* Um cartão por exercício. Grid fluido: com 4 anos cabe tudo numa linha em
    telas largas e vira coluna única no celular, sem media query. */
+/* base estreita o bastante para cinco exercícios caberem numa linha em tela
+   larga, e o auto-fit continua empilhando sozinho no celular */
 .historico-anos {
   display: grid; gap: 0.85rem;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
 }
 .ano-card {
   background: var(--superficie); border: 1px solid var(--borda);
@@ -476,21 +478,44 @@ body {
 
 /* ------------------------------------------ colunas por exercício -------- */
 /* O ano é uma dimensão ordenada: vai na posição (eixo x), nunca na cor. */
-.colunas { margin: 0; }
-.colunas-plot {
-  display: grid; grid-template-columns: repeat(var(--n-anos), minmax(0, 1fr));
-  gap: 0.5rem; align-items: end;
+.colunas {
+  margin: 0;
+  /* medidas compartilhadas pelas colunas e pelo SVG das tendências, que
+     precisa cobrir exatamente a área de plotagem */
+  --colunas-h: 168px;
+  --colunas-topo: 2.3em;
+  --colunas-gap: 0.35rem;
 }
-.colunas-ano { display: grid; gap: 0.35rem; min-width: 0; }
+/* Sem folga entre as colunas: assim o centro do ano `i` é exatamente
+   (i + 0,5)/n da largura — é o que faz a reta de tendência cair no lugar. A
+   folga visual vem do padding interno de cada coluna. */
+.colunas-plot {
+  position: relative;
+  display: grid; grid-template-columns: repeat(var(--n-anos), minmax(0, 1fr));
+  align-items: end;
+}
+.colunas-ano { display: grid; gap: var(--colunas-gap); min-width: 0; padding: 0 0.25rem; }
 /* O rótulo do total pode ocupar duas linhas ("R$ 879,2 mi (10,2%)") sem
    desalinhar as colunas: a caixa tem altura fixa e o texto encosta embaixo. */
 .colunas-total {
   display: flex; align-items: flex-end; justify-content: center;
-  min-height: 2.3em; line-height: 1.15; text-align: center;
+  min-height: var(--colunas-topo); line-height: 1.15; text-align: center;
   font-size: 0.72rem; font-weight: 700; color: var(--tinta-2);
   font-variant-numeric: tabular-nums;
 }
-.colunas-trilho { height: 168px; display: flex; align-items: flex-end; }
+.colunas-trilho { height: var(--colunas-h); display: flex; align-items: flex-end; }
+/* `width: 100%` é obrigatório: um SVG com viewBox tem proporção intrínseca, e
+   com `width: auto` o par left/right NÃO estica o elemento — ele fica do
+   tamanho natural e a reta sai cortada no primeiro ano. */
+.colunas-tendencias {
+  position: absolute; left: 0; top: calc(var(--colunas-topo) + var(--colunas-gap));
+  width: 100%; height: var(--colunas-h);
+  pointer-events: none; overflow: visible;
+}
+.legenda-tracejo {
+  width: 18px; height: 0; flex: none;
+  border-top: 2px dashed var(--tinta-fraca);
+}
 .colunas-pilha {
   width: 100%; display: flex; flex-direction: column-reverse;
   /* folga de 2px na cor da superfície entre segmentos — separação por espaço,
@@ -503,8 +528,15 @@ body {
   justify-content: center; gap: 2px;
 }
 .colunas-barra {
+  position: relative;
   flex: 1 1 0; max-width: 3.2rem; min-height: 2px;
   border-radius: 4px 4px 0 0; transition: opacity 0.12s;
+}
+/* rótulo direto acima da barra — texto em token de tinta, nunca na cor da série */
+.colunas-barra-rotulo {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  margin-bottom: 3px; font-size: 0.68rem; font-weight: 700; line-height: 1;
+  color: var(--tinta-2); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .colunas-rotulo {
   text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--tinta);
@@ -534,10 +566,27 @@ body {
 .matriz-celula { min-width: 5.6rem; }
 .matriz-valor { display: block; font-weight: 600; color: var(--tinta-2); white-space: nowrap; }
 .matriz-celula.vazia .matriz-valor { color: var(--tinta-fraca); font-weight: 500; }
+/* a seta repete o que o tom da célula diz — a direção nunca é só cor */
+.matriz-seta { font-size: 0.62em; margin-right: 0.3em; }
+.matriz-seta.sobe { color: var(--serie-azul); }
+.matriz-seta.desce { color: var(--serie-laranja); }
 .matriz-trilho { display: block; margin-top: 0.22rem; height: 3px; background: var(--hairline); border-radius: 2px; }
 .matriz-fill { display: block; height: 100%; background: var(--serie-azul); border-radius: 2px; }
 .matriz td.matriz-total .matriz-valor { color: var(--tinta); font-weight: 800; }
-.matriz th.matriz-total, .matriz td.matriz-total { border-left: 1px solid var(--borda); }
+.matriz th.matriz-total, .matriz td.matriz-total { border-left: 1px solid var(--borda); background: none; }
+
+.matriz-legenda {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem;
+  margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--hairline);
+  font-size: 0.72rem; font-weight: 600; color: var(--tinta-2);
+}
+.matriz-chave {
+  width: 20px; height: 12px; border-radius: 3px; flex: none;
+  border: 1px solid var(--hairline);
+}
+.matriz-chave.sobe { background: color-mix(in oklab, var(--serie-azul) 26%, transparent); }
+.matriz-chave.desce { background: color-mix(in oklab, var(--serie-laranja) 26%, transparent); }
+.matriz-chave.desce { margin-left: 0.5rem; }
 
 /* ------------------------------------------ ranking horizontal ----------- */
 .ranking { margin: 0; }

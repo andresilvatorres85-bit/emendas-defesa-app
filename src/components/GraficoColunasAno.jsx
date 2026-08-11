@@ -11,6 +11,30 @@ import { useMemo, useState } from 'react'
 // Uma única série não ganha legenda — o título do painel já a nomeia.
 // Segmentos empilhados são separados por 2px na cor da superfície (folga, não
 // borda), e o valor total de cada ano é rotulado direto acima da coluna.
+//
+// `rotularBarras` põe o valor sobre cada barra do modo agrupado e `tendencia`
+// desenha, por série, a reta de mínimos quadrados sobre as colunas.
+
+// Reta de tendência por mínimos quadrados sobre (índice do ano, valor).
+// Devolve os valores previstos no primeiro e no último ano — dois pontos
+// bastam, a reta é reta.
+function tendenciaLinear(valores) {
+  const n = valores.length
+  if (n < 2) return null
+  const mediaX = (n - 1) / 2
+  const mediaY = valores.reduce((s, v) => s + v, 0) / n
+  let num = 0
+  let den = 0
+  for (let i = 0; i < n; i++) {
+    num += (i - mediaX) * (valores[i] - mediaY)
+    den += (i - mediaX) ** 2
+  }
+  if (!den) return null
+  const a = num / den
+  const b = mediaY - a * mediaX
+  return { inicio: b, fim: a * (n - 1) + b, inclinacao: a }
+}
+
 export default function GraficoColunasAno({
   anos,
   series,
@@ -18,6 +42,8 @@ export default function GraficoColunasAno({
   proporcao = false,
   formatar,
   formatarTotal,
+  rotularBarras = false,
+  tendencia = false,
   rotuloEixo,
   vazio = 'Sem valores para os filtros aplicados.',
 }) {
@@ -29,6 +55,26 @@ export default function GraficoColunasAno({
     const alturas = empilhado ? t : series.flatMap((s) => s.valores)
     return { totais: t, max: Math.max(1, ...alturas) }
   }, [anos, series, empilhado, proporcao])
+
+  // As retas são desenhadas num SVG esticado sobre a área de plotagem. Como as
+  // colunas ficam num grid sem gap, o centro do ano `i` é exatamente
+  // (i + 0,5) / n da largura — não há folga a descontar.
+  const retas = useMemo(() => {
+    if (!tendencia) return []
+    const n = anos.length
+    return series
+      .map((s) => {
+        const t = tendenciaLinear(s.valores)
+        if (!t) return null
+        const y = (v) => 100 - (Math.min(Math.max(v, 0), max) / max) * 100
+        return {
+          chave: s.chave, rotulo: s.rotulo, cor: s.cor, inclinacao: t.inclinacao,
+          x1: (0.5 / n) * 100, y1: y(t.inicio),
+          x2: ((n - 0.5) / n) * 100, y2: y(t.fim),
+        }
+      })
+      .filter(Boolean)
+  }, [tendencia, series, anos.length, max])
 
   if (!anos.length || !series.length || totais.every((t) => t === 0)) {
     return <p className="grafico-vazio">{vazio}</p>
@@ -88,7 +134,11 @@ export default function GraficoColunasAno({
                           title={`${ano} · ${s.rotulo}: ${fmt(v)}`}
                           onMouseEnter={() => setHover(s.chave)}
                           onMouseLeave={() => setHover(null)}
-                        />
+                        >
+                          {rotularBarras && v > 0 && (
+                            <span className="colunas-barra-rotulo">{fmt(v)}</span>
+                          )}
+                        </span>
                       )
                     })}
                   </div>
@@ -98,6 +148,28 @@ export default function GraficoColunasAno({
             </div>
           )
         })}
+
+        {retas.length > 0 && (
+          <svg
+            className="colunas-tendencias"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            {retas.map((r) => (
+              <line
+                key={r.chave}
+                x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2}
+                stroke={r.cor}
+                strokeWidth="2"
+                strokeDasharray="7 5"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                opacity={hover === null || hover === r.chave ? 0.95 : 0.2}
+              />
+            ))}
+          </svg>
+        )}
       </div>
 
       {series.length > 1 && (
@@ -113,6 +185,12 @@ export default function GraficoColunasAno({
               {s.rotulo}
             </span>
           ))}
+          {retas.length > 0 && (
+            <span className="barras-legenda-item">
+              <span className="legenda-tracejo" aria-hidden />
+              Linha tracejada: tendência do período
+            </span>
+          )}
         </figcaption>
       )}
     </figure>

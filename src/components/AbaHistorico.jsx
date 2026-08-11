@@ -28,12 +28,14 @@ function Variacao({ pct }) {
   )
 }
 
-export default function AbaHistorico({ registros, contexto }) {
+export default function AbaHistorico({ registros, registrosTodasForcas, contexto }) {
   const anosResumo = useMemo(() => resumoPorAno(registros), [registros])
   const rp = useMemo(() => rpPorAno(registros), [registros])
   const modalidade = useMemo(() => modalidadePorAno(registros), [registros])
   const impositivas = useMemo(() => impositivasPorAno(registros), [registros])
-  const forca = useMemo(() => forcaPorAno(registros), [registros])
+  // O painel "Por Força" compara as Forças entre si, então ele ignora também o
+  // filtro de Órgão — que, no padrão do app, o reduziria a uma linha só.
+  const forca = useMemo(() => forcaPorAno(registrosTodasForcas ?? registros), [registrosTodasForcas, registros])
   const cmila = useMemo(() => cmilaPorAno(registros), [registros])
   const partidos = useMemo(() => partidosPorAno(registros, 12), [registros])
   const autores = useMemo(() => autoresRecorrentes(registros, 12), [registros])
@@ -118,7 +120,9 @@ export default function AbaHistorico({ registros, contexto }) {
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Emendas e parlamentares por ano</h2>
-              <p className="painel-sub">Quantidade de emendas distintas e de autores distintos</p>
+              <p className="painel-sub">
+                Quantidade de emendas distintas e de autores distintos · tracejado = tendência
+              </p>
             </div>
             <span className="painel-total">{fmtInt(emendasPeriodo)} emendas</span>
             <BotaoPNG titulo="Emendas e parlamentares por ano" contexto={contexto} />
@@ -128,6 +132,8 @@ export default function AbaHistorico({ registros, contexto }) {
             series={serieContagem}
             formatar={fmtInt}
             formatarTotal={() => ''}
+            rotularBarras
+            tendencia
             rotuloEixo="Emendas e parlamentares por exercício"
           />
         </section>
@@ -194,7 +200,9 @@ export default function AbaHistorico({ registros, contexto }) {
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Por Força</h2>
-              <p className="painel-sub">Valor solicitado por Força, consolidando as UO de cada uma</p>
+              <p className="painel-sub">
+                Valor solicitado por Força, consolidando as UO de cada uma · ignora o filtro de Órgão
+              </p>
             </div>
             <BotaoPNG titulo="Histórico por Força" contexto={contexto} />
           </div>

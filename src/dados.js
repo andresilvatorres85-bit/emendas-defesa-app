@@ -36,18 +36,40 @@ export function corDoRP(rp) {
 export const UO_ORGAO = {
   '52121': 'EXÉRCITO',
   '52221': 'EXÉRCITO',
-  '52921': 'EXÉRCITO', // Fundo do Exército — só aparece em 2023
+  '52921': 'EXÉRCITO', // Fundo do Exército
   '52111': 'AERONÁUTICA',
   '52911': 'AERONÁUTICA',
   '52131': 'MARINHA',
   '52931': 'MARINHA',
   '52932': 'MARINHA',
   '52133': 'MARINHA',
-  '52232': 'MARINHA', // CCCPM — só aparece em 2023
+  '52232': 'MARINHA', // CCCPM
   '52101': 'MINISTÉRIO DA DEFESA',
   '52902': 'MINISTÉRIO DA DEFESA',
 }
-export const orgaoDeUO = (uoCod) => UO_ORGAO[String(uoCod)] || 'MINISTÉRIO DA DEFESA'
+
+// Reserva para UO que ainda não estão no catálogo acima. Espelha a regra do
+// pipeline (`familia_da_uo` em processar_dados.py): nome primeiro, depois a
+// estrutura do código — dentro do órgão 52000 o 4º dígito identifica o Comando
+// (1=Aeronáutica, 2=Exército, 3=Marinha, 0=órgão conjunto do MD). Sem isso uma
+// UO nova viraria "Ministério da Defesa" no silêncio e sumiria do comparativo
+// por Força. Normalmente não roda: o dados.json já traz o campo `orgao`; isto
+// cobre o caso de app novo com JSON antigo.
+const NOME_ORGAO = [
+  [/MARINHA|\bNAVAL\b|MARITIMO|RECURSOS DO MAR|FUZILEIROS|\bCCCPM\b|\bSECIRM\b/, 'MARINHA'],
+  [/EXERCITO|\bIMBEL\b|BELICO/, 'EXÉRCITO'],
+  [/AERONAUTICA|AEROESPACIAL|FORCA AEREA|\bAEREA\b/, 'AERONÁUTICA'],
+]
+const DIGITO_ORGAO = { 1: 'AERONÁUTICA', 2: 'EXÉRCITO', 3: 'MARINHA' }
+
+export function orgaoDeUO(uoCod, uoNome) {
+  const cod = String(uoCod ?? '').trim()
+  if (UO_ORGAO[cod]) return UO_ORGAO[cod]
+  const nome = String(uoNome ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  for (const [padrao, orgao] of NOME_ORGAO) if (padrao.test(nome)) return orgao
+  if (/^52\d{3}$/.test(cod)) return DIGITO_ORGAO[cod[3]] || 'MINISTÉRIO DA DEFESA'
+  return 'MINISTÉRIO DA DEFESA'
+}
 
 // Definição dos filtros, na ordem de exibição.
 // `campo` é a chave do registro no dados.json; `rotulo` é o texto exibido.
@@ -104,8 +126,9 @@ export async function carregarDados() {
   if (!resp.ok) throw new Error(`Falha ao carregar dados (${resp.status})`)
   const dados = await resp.json()
   for (const r of dados.registros) {
-    // Deriva o campo "orgao" (consolidação por Força/MD) a partir da UO (Cod).
-    r.orgao = orgaoDeUO(r.uoCod)
+    // A Força vem calculada do pipeline; o cálculo local é só reserva para
+    // um dados.json anterior a esse campo.
+    r.orgao = r.orgao || orgaoDeUO(r.uoCod, r.uo)
     r.inconsistencias = (r.inconsistencias || []).map(normalizarInconsistencia).filter(Boolean)
   }
   return dados
@@ -113,10 +136,14 @@ export async function carregarDados() {
 
 // Aplica todos os filtros a um conjunto de registros.
 // `filtros` = { idDoFiltro: Set(valores selecionados) } — Set vazio = sem filtro.
+// `ignorar` = id de filtro, ou lista de ids, a deixar de fora deste recorte.
+// (Encadear duas chamadas não substitui a lista: a primeira já teria removido
+// os registros que a segunda precisa enxergar.)
 export function filtrarRegistros(registros, filtros, ignorar = null) {
+  const fora = new Set(ignorar === null ? [] : [].concat(ignorar))
   return registros.filter((r) =>
     FILTROS.every((f) => {
-      if (f.id === ignorar) return true
+      if (fora.has(f.id)) return true
       const sel = filtros[f.id]
       if (!sel || sel.size === 0) return true
       return sel.has(String(r[f.campo]))
@@ -305,6 +332,13 @@ const PALETA_RP7 = [
   'light-dark(#eb6834, #d95926)', // laranja
   'light-dark(#e34948, #e66767)', // vermelho
 ]
+// RP6 de autoria que não é Deputado nem Senador (comissões). Tons distintos
+// dos de RP6-Dep (magenta) e RP6-Sen (violeta) para não confundir a leitura.
+const PALETA_OUTROS_RP6 = [
+  'light-dark(#e34948, #e66767)', // vermelho
+  'light-dark(#eb6834, #d95926)', // laranja
+  'light-dark(#1baf7a, #199e70)', // verde-azulado
+]
 
 // Título em pt-BR: capitaliza palavras, mantém conectores minúsculos.
 const CONECTORES_BR = new Set(['de', 'do', 'da', 'dos', 'das', 'e'])
@@ -328,9 +362,17 @@ export const C_MIL_A_NOME = {
   CMS: 'Comando Militar do Sul',
 }
 
-// UO do Exército (o C Mil A é uma estrutura do Exército, portanto o comparativo
-// por comando considera apenas estas UO): Comando do Exército e IMBEL.
-export const UO_EXERCITO = new Set(['52121', '52221', '52921'])
+// O C Mil A é uma estrutura do Exército, portanto o comparativo por comando
+// considera apenas registros de UO do Exército. O teste é feito pelo campo
+// `orgao` (calculado no pipeline) e não por uma lista fixa de códigos: assim
+// uma UO nova do Exército entra no gráfico sozinha.
+export const ehExercito = (r) => r.orgao === 'EXÉRCITO'
+
+// "NÃO SE APLICA" é o C Mil A dos autores sem UF (comissões). Não é um comando
+// militar de área, então fica fora dos gráficos por C Mil A — apareceria como
+// uma barra sem par possível de comparação.
+export const CMILA_SEM_COMANDO = 'NÃO SE APLICA'
+const ehComando = (c) => Boolean(c) && c !== CMILA_SEM_COMANDO && c !== '—'
 
 // Comparativo por C Mil A: total impositivo RP6, RP7 e a soma (RP6+RP7) de
 // cada comando, considerando SOMENTE as UO do Exército. Só entram comandos com
@@ -342,8 +384,9 @@ export function impositivasPorCMilA(registros) {
   for (const r of registros) {
     const rp = String(r.rp)
     if (rp !== '6' && rp !== '7') continue
-    if (!UO_EXERCITO.has(String(r.uoCod))) continue
-    const c = r.cmila || '—'
+    if (!ehExercito(r)) continue
+    const c = r.cmila
+    if (!ehComando(c)) continue
     if (!m.has(c)) m.set(c, { cmila: c, rp6: 0, rp7: 0 })
     const o = m.get(c)
     if (rp === '6') o.rp6 += r.valor
@@ -394,6 +437,11 @@ export function valorPorPartido(registros) {
     .sort((a, b) => b.valor - a.valor)
 }
 
+// Impositivas = TODO o RP6 + TODO o RP7. Os segmentos são só a maneira de
+// mostrar essa soma; nenhum registro de RP6/RP7 pode ficar de fora, ou o card
+// "Impositivas" do Dashboard passa a divergir do card do Histórico.
+// (Era o que acontecia: RP6 só era fatiado em Deputado Federal e Senador, e o
+// RP6 de autoria de comissão — presente em 2022, 2023 e 2024 — sumia da conta.)
 export function valorImpositivas(registros) {
   const soma = (pred) => registros.filter(pred).reduce((acc, r) => acc + r.valor, 0)
 
@@ -404,6 +452,25 @@ export function valorImpositivas(registros) {
     { chave: 'rp6-sen', rotulo: 'RP6 · Senador', rotuloCurto: 'Senador', cor: COR_RP6_SEN,
       valor: soma((r) => String(r.rp) === '6' && r.autorTipo === 'SENADOR') },
   ]
+
+  // RP6 de qualquer outro tipo de autor (comissões). Uma fatia por tipo, e só
+  // quando existe — na maioria dos exercícios a lista sai vazia.
+  const outrosRP6 = new Map()
+  for (const r of registros) {
+    if (String(r.rp) !== '6') continue
+    if (r.autorTipo === 'DEPUTADO FEDERAL' || r.autorTipo === 'SENADOR') continue
+    const t = r.autorTipo || 'Sem tipo de autor'
+    outrosRP6.set(t, (outrosRP6.get(t) || 0) + r.valor)
+  }
+  ;[...outrosRP6.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR')).forEach((tipo, i) => {
+    fatias.push({
+      chave: `rp6-outro-${tipo}`,
+      rotulo: `RP6 · ${tituloBR(tipo)}`,
+      rotuloCurto: tituloBR(tipo).replace(/^Comissão\s+/i, 'Com. '),
+      cor: PALETA_OUTROS_RP6[i % PALETA_OUTROS_RP6.length],
+      valor: outrosRP6.get(tipo),
+    })
+  })
 
   // RP7 — segmentos dinâmicos por Autor (nome da bancada).
   const porAutor = new Map()
@@ -563,7 +630,7 @@ export function forcaPorAno(registros) {
 
 export function cmilaPorAno(registros) {
   return cruzarAnoCategoria(registros, (r) =>
-    UO_EXERCITO.has(String(r.uoCod)) && (String(r.rp) === '6' || String(r.rp) === '7')
+    ehExercito(r) && (String(r.rp) === '6' || String(r.rp) === '7') && ehComando(r.cmila)
       ? { chave: r.cmila, rotulo: C_MIL_A_NOME[r.cmila] || r.cmila, sub: r.cmila }
       : null
   )

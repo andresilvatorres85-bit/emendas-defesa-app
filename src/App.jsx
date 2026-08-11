@@ -36,18 +36,28 @@ export default function App() {
     carregarDados().then(setDados).catch((e) => setErro(e.message))
   }, [])
 
-  // O app abre no exercício mais recente da planilha: sem esse padrão, o
-  // Dashboard somaria todos os anos de uma vez, o que não é a pergunta que
-  // alguém faz ao abrir um painel do PLOA. O ano vem do próprio dado, então
-  // acrescentar 2027 à planilha basta para o app abrir em 2027.
+  // Filtros com que o app abre. O ano vem do próprio dado — acrescentar 2027 à
+  // planilha basta para o app abrir em 2027 — e o Órgão abre no Exército, que é
+  // o recorte de trabalho do dia a dia. Sem padrão de ano o Dashboard somaria
+  // todos os exercícios de uma vez, que não é a pergunta que alguém faz ao
+  // abrir um painel do PLOA. Os dois voltam nesses valores no "Limpar filtros"
+  // e são sobrepostos por qualquer link compartilhado.
   useEffect(() => {
-    if (dados?.anoCorrente) definirPadrao('ano', [dados.anoCorrente])
+    if (!dados?.anoCorrente) return
+    definirPadrao('ano', [dados.anoCorrente])
+    definirPadrao('orgao', ['EXÉRCITO'])
   }, [dados, definirPadrao])
 
   const registros = dados?.registros ?? []
   const filtrados = useMemo(() => filtrarRegistros(registros, filtros), [registros, filtros])
   // A aba Histórico compara exercícios — ela é a única que ignora o filtro de Ano.
   const semAno = useMemo(() => filtrarRegistros(registros, filtros, 'ano'), [registros, filtros])
+  // …e o painel "Por Força" dela ignora também o Órgão, pelo mesmo motivo: é o
+  // que ele compara.
+  const semAnoNemOrgao = useMemo(
+    () => filtrarRegistros(registros, filtros, ['ano', 'orgao']),
+    [registros, filtros]
+  )
   const grupos = useMemo(() => agruparPorEmenda(filtrados), [filtrados])
   const gruposIncons = useMemo(() => grupos.filter((g) => g.inconsistencias.length > 0), [grupos])
   const stats = useMemo(() => resumo(filtrados), [filtrados])
@@ -324,7 +334,11 @@ export default function App() {
 
         {aba === 'historico' && (
           <section aria-label="Histórico">
-            <AbaHistorico registros={semAno} contexto={contextoHistorico} />
+            <AbaHistorico
+              registros={semAno}
+              registrosTodasForcas={semAnoNemOrgao}
+              contexto={contextoHistorico}
+            />
           </section>
         )}
 
