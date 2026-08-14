@@ -139,7 +139,17 @@ ALIAS = {
     "Identificador Primário (Cod)": ["Identificador Primário", "RP", "RP (Cod)"],
     "Esfera (Cod)": ["Esfera"],
     "Autor (Cod)": ["Ação (Cod)"],
+    "Autor (Tipo)": ["Autor Tipo"],  # 2019 escreve sem parênteses
+    "OM": ["OM (agregado)"],
+    "Objeto": ["Objeto (agregado)"],
 }
+
+# Aba auxiliar do consolidado com o de-para (Ano|Emenda) -> OM/Objeto. Serve de
+# reserva quando a linha do ano vem sem as colunas preenchidas.
+ABA_OM_OBJETO = "Fonte_OM_Objeto"
+
+# Rótulo para o "Autor (Tipo)" que a planilha não traz (71 linhas de 2020).
+TIPO_AUTOR_DESCONHECIDO = "NÃO INFORMADO"
 
 # "Identificador Primário" por extenso (2025) -> código de RP usado no app.
 RP_POR_EXTENSO = {
@@ -238,17 +248,23 @@ MOD_APLIC_NOMES = {
     "99": "A Definir",
     "30": "Transferência a Estados e ao DF",
     "31": "Transferência a Estados e ao DF — fundo a fundo",
+    "32": "Execução Orçamentária Delegada a Estados e ao DF",
     "40": "Transferência a Municípios",
     "41": "Transferência a Municípios — fundo a fundo",
+    "42": "Execução Orçamentária Delegada a Municípios",
     "50": "Transferência a Instituições Privadas sem Fins Lucrativos",
 }
 
 UO_FAMILIA = {
     "52131": "MARINHA", "52931": "MARINHA", "52932": "MARINHA", "52133": "MARINHA",
-    "52232": "MARINHA",  # CCCPM — só aparece em 2023
+    "52232": "MARINHA",  # CCCPM
+    "52233": "MARINHA",  # AMAZUL
     "52121": "EXERCITO", "52221": "EXERCITO", "52921": "EXERCITO",
+    "52222": "EXERCITO",  # Fundação Osório
     "52111": "AERONAUTICA", "52911": "AERONAUTICA",
-    "52101": None, "52902": None,  # neutras (órgãos conjuntos do MD)
+    "52211": "AERONAUTICA",  # Caixa de Financiamento Imobiliário da Aeronáutica
+    # neutras (órgãos conjuntos do MD)
+    "52101": None, "52902": None, "52901": None, "52903": None,
 }
 FAMILIA_LABEL = {"MARINHA": "Marinha", "EXERCITO": "Exército", "AERONAUTICA": "Aeronáutica"}
 # Rótulo da Força usado no filtro "Órgão" do app.
@@ -272,8 +288,9 @@ FAMILIA_ORGAO = {
 # Toda UO que não estiver no catálogo é registrada em `uosNaoCatalogadas`
 # (bloco `auditoria` do JSON) com a camada que a classificou.
 NOME_FAMILIA = [
-    (r"MARINHA|\bNAVAL\b|MARITIMO|RECURSOS DO MAR|FUZILEIROS|\bCCCPM\b|\bSECIRM\b", "MARINHA"),
-    (r"EXERCITO|\bIMBEL\b|BELICO", "EXERCITO"),
+    (r"MARINHA|\bNAVAL\b|MARITIMO|RECURSOS DO MAR|FUZILEIROS|\bCCCPM\b|\bSECIRM\b"
+     r"|\bAMAZUL\b|AMAZONIA AZUL", "MARINHA"),
+    (r"EXERCITO|\bIMBEL\b|BELICO|\bOSORIO\b", "EXERCITO"),
     (r"AERONAUTICA|AEROESPACIAL|FORCA AEREA|\bAEREA\b", "AERONAUTICA"),
 ]
 DIGITO_FAMILIA = {"0": None, "1": "AERONAUTICA", "2": "EXERCITO", "3": "MARINHA"}
@@ -633,13 +650,43 @@ def _ler_aba(ws, ano, desconhecidos):
     return registros
 
 
-def ler_blocos(caminho_xlsx, desconhecidos):
+def _ler_om_objeto(wb):
+    """De-para (ano, emenda) -> (OM, Objeto) da aba auxiliar do consolidado.
+
+    A coluna OM/Objeto já vem preenchida em cada aba de ano; esta aba é a
+    reserva, usada quando a linha do ano está vazia. Só entra quem tem OM ou
+    objeto de fato — a aba tem colunas de trabalho (chaves, agregados) que não
+    interessam aqui.
+    """
+    if ABA_OM_OBJETO not in wb.sheetnames:
+        return {}
+    ws = wb[ABA_OM_OBJETO]
+    linhas = ws.iter_rows(values_only=True)
+    cabecalho = [str(c).strip() if c is not None else "" for c in next(linhas)]
+    mapa = {}
+    for linha in linhas:
+        d = dict(zip(cabecalho, linha))
+        _resolver_alias(d)
+        ano = str(d.get("Ano") or "").strip()
+        emenda = str(d.get("Emenda") or "").strip()
+        om = str(d.get("OM") or "").strip()
+        objeto = str(d.get("Objeto") or "").strip()
+        if ano and emenda and (om or objeto):
+            mapa.setdefault((ano, emenda), (om, objeto))
+    return mapa
+
+
+def ler_blocos(caminho_xlsx, desconhecidos, om_objeto=None):
     """Lê um .xlsx e devolve [(ano, origem, registros)].
 
     `origem` é "exercicio" (arquivo de um único ano) ou "historico" (arquivo
     consolidado com uma aba por ano) — usado para desempatar anos repetidos.
+    Abas que não são um ano (p. ex. `Fonte_OM_Objeto`) não viram bloco: elas
+    são lidas à parte, como fonte auxiliar.
     """
     wb = openpyxl.load_workbook(caminho_xlsx, read_only=True, data_only=True)
+    if om_objeto is not None:
+        om_objeto.update(_ler_om_objeto(wb))
     abas_ano = [n for n in wb.sheetnames if re.fullmatch(r"\s*20\d{2}\s*", str(n))]
     if abas_ano:
         blocos = []
@@ -668,7 +715,72 @@ def ler_blocos(caminho_xlsx, desconhecidos):
     return [(ano, "exercicio", registros)]
 
 
-def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None):
+def uniformizar_entre_anos(por_ano):
+    """Alinha valores que a planilha escreve de formas diferentes entre anos.
+
+    Duas correções, ambas visíveis direto nos filtros do app:
+
+    1. NOME DA UO. O mesmo código aparece como "COMANDO DO EXÉRCITO" (2021+) e
+       "COMANDO DO EXÉRCITO - ADMINISTRAÇÃO DIRETA" (2019/2020). Sem alinhar, o
+       filtro "UO" lista a mesma unidade duas vezes e divide os totais. Vence o
+       nome do ANO MAIS RECENTE em que o código aparece — assim o rótulo segue o
+       que a planilha usa hoje, sem mapa escrito à mão.
+
+    2. TIPO DE AUTOR AUSENTE. Em 2020, 71 linhas vêm sem "Autor (Tipo)", embora
+       tragam o parlamentar e a UF. O tipo é preenchido a partir de outra linha
+       do MESMO autor (em qualquer ano) — é o mesmo parlamentar, e sem isso ele
+       fica de fora do ranking e da rosca de impositivas.
+    """
+    anos_desc = sorted(por_ano, reverse=True)
+
+    nome_uo = {}
+    tipo_autor = {}
+    for ano in anos_desc:
+        for r in por_ano[ano][1]:
+            cod = str(r.get("UO (Cod)") or "").strip()
+            nome = str(r.get("UO") or "").strip()
+            if cod and nome:
+                nome_uo.setdefault(cod, nome)
+            autor = str(r.get("Autor") or "").strip().upper()
+            tipo = str(r.get("Autor (Tipo)") or "").strip()
+            if autor and tipo:
+                tipo_autor.setdefault(autor, tipo)
+
+    renomeadas, tipos_preenchidos, sem_tipo = set(), 0, 0
+    for ano in por_ano:
+        for r in por_ano[ano][1]:
+            cod = str(r.get("UO (Cod)") or "").strip()
+            canonico = nome_uo.get(cod)
+            if canonico and str(r.get("UO") or "").strip() != canonico:
+                renomeadas.add((cod, str(r.get("UO") or "").strip(), canonico))
+                r["UO"] = canonico
+            if not str(r.get("Autor (Tipo)") or "").strip():
+                tipo = tipo_autor.get(str(r.get("Autor") or "").strip().upper())
+                if tipo:
+                    r["Autor (Tipo)"] = tipo
+                    tipos_preenchidos += 1
+                elif str(r.get("Autor") or "").strip():
+                    # Sem evidência de qual Casa: rotular explicitamente é melhor
+                    # que deixar vazio (vira uma opção em branco no filtro) e do
+                    # que adivinhar. O código do autor NÃO serve de pista — ele é
+                    # reaproveitado entre legislaturas (5 códigos aparecem ora
+                    # como Deputado, ora como Senador).
+                    r["Autor (Tipo)"] = TIPO_AUTOR_DESCONHECIDO
+                    sem_tipo += 1
+
+    if renomeadas:
+        print("\nNome de UO alinhado ao do ano mais recente:")
+        for cod, antigo, novo in sorted(renomeadas):
+            print(f"  {cod}: {antigo!r} -> {novo!r}")
+    if tipos_preenchidos:
+        print(f"\nAutor (Tipo) ausente preenchido pelo mesmo autor em outro ano: "
+              f"{tipos_preenchidos} linha(s)")
+    if sem_tipo:
+        print(f"\nAutor (Tipo) ausente e sem evidência em outro ano: {sem_tipo} "
+              f"linha(s) rotuladas como {TIPO_AUTOR_DESCONHECIDO!r}")
+
+
+def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None, om_objeto=None):
     """Converte um registro bruto no formato compacto consumido pelo app."""
     def s(col):
         v = registro.get(col)
@@ -711,6 +823,18 @@ def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None):
         "justificativa": justificativa,
         "cmila": cmila,
     }
+
+    # OM beneficiada e objeto da emenda. Vêm das colunas da própria aba do ano;
+    # a aba auxiliar do consolidado é a reserva. Só existem onde alguém já fez a
+    # identificação — hoje, quase toda em emendas do Exército.
+    om = s("OM")
+    objeto = s("Objeto")
+    if not (om or objeto) and om_objeto:
+        om, objeto = om_objeto.get((out["ano"], out["emenda"]), ("", ""))
+    if om:
+        out["om"] = om.replace("\xa0", " ").strip()
+    if objeto:
+        out["objeto"] = objeto.replace("_x000D_", " ").replace("\xa0", " ").strip()
     if fallback_mg:
         out["cmilaFallback"] = True
     if inconsistencias:
@@ -737,10 +861,11 @@ def main():
     # 1) Lê tudo e agrupa por ano. Ver REGRA 0 para a precedência entre o
     #    arquivo do exercício e a aba do consolidado.
     rp_desconhecidos = set()
+    om_objeto = {}
     por_ano = {}
     for arq in arquivos:
         print(f"Lendo {arq}")
-        for ano, origem, brutos in ler_blocos(arq, rp_desconhecidos):
+        for ano, origem, brutos in ler_blocos(arq, rp_desconhecidos, om_objeto):
             atual = por_ano.get(ano)
             if atual and atual[0] == "exercicio" and origem == "historico":
                 print(f"  ano {ano}: aba do consolidado ignorada "
@@ -760,6 +885,10 @@ def main():
         print("\nAVISO: RP por extenso não reconhecido (mantido como veio): "
               + "; ".join(sorted(rp_desconhecidos)))
 
+    # Alinha entre anos o que a planilha escreve de formas diferentes, ANTES de
+    # normalizar — o resultado vai direto para os filtros do app.
+    uniformizar_entre_anos(por_ano)
+
     # 2) Normaliza ano a ano. A deduplicação é POR ANO: o mesmo número de
     #    emenda existe em exercícios diferentes e são emendas diferentes.
     registros, descartadas, uos_nao_catalogadas = [], [], {}
@@ -770,7 +899,8 @@ def main():
             if chave in vistos:
                 continue
             vistos.add(chave)
-            registros.append(normalizar(r, len(registros), descartadas, uos_nao_catalogadas))
+            registros.append(
+                normalizar(r, len(registros), descartadas, uos_nao_catalogadas, om_objeto))
 
     anos = sorted({r["ano"] for r in registros})
     print("\nPor ano:")
