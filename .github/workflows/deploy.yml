@@ -2,8 +2,15 @@
 #
 # Dispara em:
 #  - push neste repositório (mudanças no app);
-#  - agendamento diário (captura novos .xlsx no repositório de dados);
-#  - manualmente (aba Actions -> Run workflow);
+#  - agendamento DIÁRIO às 09:00 UTC / 06:00 de Brasília. É esta linha que faz
+#    o app reler o Historico_emendas_apresentadas.xlsx todo dia: o passo de
+#    processamento baixa o arquivo de novo e regenera o public/dados.json do
+#    zero, então uma aba de ano nova ou linhas novas entram sozinhas, sem
+#    tocar no código. Só é preciso republicar o app quando o CÓDIGO muda.
+#    ATENÇÃO: o GitHub SUSPENDE agendamentos em repositório sem atividade por
+#    60 dias — ele avisa por e-mail e basta reativar em Actions, ou rodar o
+#    workflow manualmente uma vez para zerar a contagem.
+#  - manualmente (aba Actions -> Run workflow), para não esperar o horário;
 #  - repository_dispatch tipo "dados-atualizados" (opcional: dispare a partir
 #    do repositório de dados — ver INSTRUCOES_DEPLOY.md, seção 5).
 name: Build e deploy no GitHub Pages
@@ -42,6 +49,8 @@ jobs:
 
       - name: Processar .xlsx do repositório de dados
         env:
+          # Autentica as chamadas à API do GitHub (limite 5.000/h em vez de 60/h),
+          # evitando o erro "rate limit exceeded" ao listar os .xlsx.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install openpyxl
