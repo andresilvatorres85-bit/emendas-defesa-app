@@ -12,12 +12,18 @@ export const RP_LABEL = (cod) => (cod ? `RP${cod}` : '—')
 // claro e escuro. Vive aqui — e não no gráfico — porque a rosca do Dashboard,
 // o comparativo do Histórico e a exportação PPTX precisam da MESMA cor para o
 // mesmo RP: é a identidade do dado, não uma escolha de um gráfico.
+// A ordem de RP na composição é a numérica (0,1,2,3,6,7,8,9), então é essa a
+// sequência que precisa passar no validador de paleta — e passa, com o pior par
+// adjacente em ΔE 9,1 (claro) e 8,4 (escuro), acima do piso de 8.
 const COR_RP = {
-  2: { claro: '#2a78d6', escuro: '#3987e5' },
-  3: { claro: '#008300', escuro: '#008300' },
-  6: { claro: '#e87ba4', escuro: '#d55181' },
-  7: { claro: '#eda100', escuro: '#c98500' },
-  8: { claro: '#1baf7a', escuro: '#199e70' },
+  0: { claro: '#4a3aa7', escuro: '#9085e9' }, // violeta — financeiro
+  1: { claro: '#e34948', escuro: '#e66767' }, // vermelho — primário obrigatório
+  2: { claro: '#2a78d6', escuro: '#3987e5' }, // azul
+  3: { claro: '#008300', escuro: '#008300' }, // verde — PAC
+  6: { claro: '#e87ba4', escuro: '#d55181' }, // magenta — individual impositiva
+  7: { claro: '#eda100', escuro: '#c98500' }, // amarelo — bancada impositiva
+  8: { claro: '#1baf7a', escuro: '#199e70' }, // aqua — relator
+  9: { claro: '#eb6834', escuro: '#d95926' }, // laranja — comissão impositiva
 }
 const COR_EXTRA = [
   { claro: '#eb6834', escuro: '#d95926' },
@@ -183,6 +189,10 @@ export function agruparPorEmenda(registros) {
       autorUF: r0.autorUF,
       rps: [...new Set(itens.map((i) => i.rp))].sort(),
       valor: itens.reduce((s, i) => s + i.valor, 0),
+      // OM beneficiada e objeto (quando identificados na planilha). Uma emenda
+      // pode ter mais de um item com OM diferente, por isso são listas.
+      oms: [...new Set(itens.map((i) => i.om).filter(Boolean))],
+      objetos: [...new Set(itens.map((i) => i.objeto).filter(Boolean))],
       inconsistencias: itens.flatMap((i) => i.inconsistencias || []),
       itens,
     }
@@ -403,11 +413,17 @@ export function impositivasPorCMilA(registros) {
 // prefixa o nome com "Dep"/"Sen". Devolve os `n` maiores (padrão 10).
 const AUTOR_TIPO_SIGLA = { 'DEPUTADO FEDERAL': 'Dep', SENADOR: 'Sen' }
 
+// Em 2020 a planilha deixou 71 linhas sem "Autor (Tipo)" — são parlamentares de
+// verdade (emenda INDIVIDUAL, com UF), e o pipeline os rotula "NÃO INFORMADO"
+// em vez de adivinhar a Casa. Eles entram no ranking, com sigla neutra: deixá-los
+// de fora faria o ranking de 2020 mentir por omissão.
+const ehParlamentar = (r) => AUTOR_TIPO_SIGLA[r.autorTipo] || r.modalidade === 'INDIVIDUAL'
+
 export function topAutores(registros, n = 10) {
   const m = new Map()
   for (const r of registros) {
-    const sigla = AUTOR_TIPO_SIGLA[r.autorTipo]
-    if (!sigla) continue
+    if (!ehParlamentar(r)) continue
+    const sigla = AUTOR_TIPO_SIGLA[r.autorTipo] || '—'
     if (!m.has(r.autor)) {
       m.set(r.autor, { autor: r.autor, sigla, tipo: r.autorTipo, uf: r.autorUF, valor: 0 })
     }
@@ -587,8 +603,9 @@ const COR_MODALIDADE = {
   INDIVIDUAL: 'light-dark(#2a78d6, #3987e5)',
   'BANCADA ESTADUAL': 'light-dark(#eb6834, #d95926)',
   COMISSÃO: 'light-dark(#1baf7a, #199e70)',
+  RELATOR: 'light-dark(#4a3aa7, #9085e9)', // emenda de relator — só até 2021
 }
-const ORDEM_MODALIDADE = ['INDIVIDUAL', 'BANCADA ESTADUAL', 'COMISSÃO']
+const ORDEM_MODALIDADE = ['INDIVIDUAL', 'BANCADA ESTADUAL', 'COMISSÃO', 'RELATOR']
 
 export function modalidadePorAno(registros) {
   const { anos, series } = cruzarAnoCategoria(registros, (r) => ({
@@ -647,13 +664,15 @@ export function partidosPorAno(registros, n = 12) {
 // Autores recorrentes: parlamentares (exclui comissões e bancadas) ordenados
 // primeiro pelo nº de exercícios em que apresentaram emenda e depois pelo valor
 // — a pergunta é "quem está sempre presente", não "quem pediu mais uma vez".
+const ROTULO_CASA = { 'DEPUTADO FEDERAL': 'Dep. Federal', SENADOR: 'Senador' }
+
 export function autoresRecorrentes(registros, n = 12) {
   const m = cruzarAnoCategoria(registros, (r) =>
-    AUTOR_TIPO_SIGLA[r.autorTipo]
+    ehParlamentar(r)
       ? {
           chave: r.autor,
           rotulo: tituloBR(r.autor),
-          sub: [r.autorTipo === 'SENADOR' ? 'Senador' : 'Dep. Federal', r.autorUF !== 'NA' ? r.autorUF : '']
+          sub: [ROTULO_CASA[r.autorTipo] || 'Parlamentar', r.autorUF !== 'NA' ? r.autorUF : '']
             .filter(Boolean).join(' · '),
         }
       : null

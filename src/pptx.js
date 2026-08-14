@@ -118,6 +118,26 @@ function corSolida(valor, reserva = '2A78D6') {
   return m ? m[1].toUpperCase() : reserva
 }
 
+// Contraste relativo (WCAG) entre duas cores hex de 6 dígitos.
+function luminancia(hex) {
+  const c = [0, 2, 4].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+}
+function contraste(a, b) {
+  const [x, y] = [luminancia(a), luminancia(b)].sort((m, n) => n - m)
+  return (x + 0.05) / (y + 0.05)
+}
+// Rótulo impresso DENTRO do segmento: escolhe entre branco e tinta o que
+// contrasta melhor com o preenchimento. Nenhuma das duas serve para a paleta
+// inteira — branco some no amarelo, tinta some no violeta —, então a escolha é
+// medida, não arbitrada.
+function corDoRotulo(fundo) {
+  return contraste('FFFFFF', fundo) >= contraste('1C1C1A', fundo) ? 'FFFFFF' : '1C1C1A'
+}
+
 const TINTA = '1C1C1A'
 const TINTA_2 = '4A4A45'
 const FRACA = '6E6E68'
@@ -299,52 +319,87 @@ function graficoRosca(itens) {
   )
 }
 
-// Barras horizontais. `series` = [{ nome, valores, cor }]; `cores` opcional
-// pinta ponto a ponto (usado no ranking de autores).
-function graficoBarras({ cats, series, empilhado, cores, legenda }) {
+const FMT_INT = '#,##0'
+
+// Gráfico de barras. Cobre os quatro usos do app:
+//   horizontal agrupado  — rankings (autores, partidos)
+//   horizontal empilhado — impositivas por C Mil A
+//   vertical agrupado    — séries por exercício
+//   vertical empilhado / proporção — composição por ano
+//
+// `cores` pinta ponto a ponto (ranking de autores); `tendencia` acrescenta a
+// reta de mínimos quadrados que o PowerPoint calcula sozinho — é linha de
+// tendência nativa, não um desenho por cima.
+function graficoBarras({
+  cats, series, empilhado, proporcao, cores, legenda,
+  vertical = false, formato = FMT_MI, tendencia = false,
+  rotulos = true, apagarAbaixo = 0,
+}) {
   const ax1 = 111111111
   const ax2 = 222222222
-  const posRotulo = empilhado ? 'ctr' : 'outEnd'
+  const empilha = empilhado || proporcao
+  // `outEnd` só é legal em barra agrupada; empilhada exige `ctr`.
+  const posRotulo = empilha ? 'ctr' : 'outEnd'
+  // Totais por categoria, para poder apagar o rótulo de fatias minúsculas.
+  const totalCat = cats.map((_, j) => series.reduce((s, x) => s + (x.valores[j] || 0), 0))
+
   // `apagados` são os <c:dLbl> individuais (idx + delete) e, pelo schema,
   // precisam vir ANTES das propriedades comuns dentro de <c:dLbls>.
-  const dLbls = (apagados = '') =>
+  const dLbls = (apagados = '', cor = TINTA_2) =>
     '<c:dLbls>' + apagados +
-    `<c:numFmt formatCode="${FMT_MI}" sourceLinked="0"/>` + SEM_PINTURA +
-    txPr(1050, TINTA_2, true) + `<c:dLblPos val="${posRotulo}"/>` +
-    '<c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>' +
+    `<c:numFmt formatCode="${formato}" sourceLinked="0"/>` + SEM_PINTURA +
+    txPr(1000, cor, true) + `<c:dLblPos val="${posRotulo}"/>` +
+    `<c:showLegendKey val="0"/><c:showVal val="${rotulos ? 1 : 0}"/><c:showCatName val="0"/>` +
     '<c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>'
 
   const sers = series
     .map((s, i) => {
       const col = String.fromCharCode(66 + i) // B, C, …
-      const pinta = cores
-        ? pontos(cores)
-        : ''
-      // Segmento zerado não ganha rótulo: no empilhado o "0,0 mi" ficava
-      // solto ao lado da barra e colidia com o rótulo do segmento vizinho.
+      const pinta = cores ? pontos(cores) : ''
+      // Segmento zerado (ou pequeno demais para caber o texto) não ganha
+      // rótulo: no empilhado o "0,0 mi" ficava solto ao lado da barra e
+      // colidia com o rótulo do segmento vizinho.
       const apagados = s.valores
-        .map((v, j) => (v > 0 ? '' : `<c:dLbl><c:idx val="${j}"/><c:delete val="1"/></c:dLbl>`))
+        .map((v, j) => {
+          const parte = totalCat[j] ? v / totalCat[j] : 0
+          const some = v <= 0 || (apagarAbaixo > 0 && parte < apagarAbaixo)
+          return some ? `<c:dLbl><c:idx val="${j}"/><c:delete val="1"/></c:dLbl>` : ''
+        })
         .join('')
+      const reta = tendencia
+        ? '<c:trendline><c:spPr><a:ln w="22225" cap="rnd">' +
+          `<a:solidFill><a:srgbClr val="${s.cor}"/></a:solidFill>` +
+          '<a:prstDash val="dash"/></a:ln></c:spPr>' +
+          '<c:trendlineType val="linear"/>' +
+          '<c:dispRSqr val="0"/><c:dispEq val="0"/></c:trendline>'
+        : ''
       return (
         `<c:ser><c:idx val="${i}"/><c:order val="${i}"/>` + refNome(s.nome, col) +
         `<c:spPr><a:solidFill><a:srgbClr val="${s.cor}"/></a:solidFill>` +
         '<a:ln w="19050"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln></c:spPr>' +
-        '<c:invertIfNegative val="0"/>' + pinta + dLbls(apagados) +
+        '<c:invertIfNegative val="0"/>' + pinta +
+        dLbls(apagados, empilha ? corDoRotulo(s.cor) : TINTA_2) + reta +
         refCat(cats) + refVal(s.valores, col) + '</c:ser>'
       )
     })
     .join('')
 
+  const agrupamento = proporcao ? 'percentStacked' : empilhado ? 'stacked' : 'clustered'
   const grafico =
-    '<c:barChart><c:barDir val="bar"/>' +
-    `<c:grouping val="${empilhado ? 'stacked' : 'clustered'}"/>` +
+    `<c:barChart><c:barDir val="${vertical ? 'col' : 'bar'}"/>` +
+    `<c:grouping val="${agrupamento}"/>` +
     `<c:varyColors val="0"/>${sers}${dLbls()}` +
-    `<c:gapWidth val="${empilhado ? 50 : 45}"/><c:overlap val="${empilhado ? 100 : -27}"/>` +
+    `<c:gapWidth val="${empilha ? 60 : 45}"/><c:overlap val="${empilha ? 100 : -27}"/>` +
     `<c:axId val="${ax1}"/><c:axId val="${ax2}"/></c:barChart>`
 
+  // Na barra horizontal as categorias são invertidas (maior no topo), e é o
+  // valAx que precisa cruzar no máximo para o rótulo ficar à esquerda. Na
+  // coluna vertical a ordem natural já é a certa.
   const catAx =
-    `<c:catAx><c:axId val="${ax1}"/><c:scaling><c:orientation val="maxMin"/></c:scaling>` +
-    '<c:delete val="0"/><c:axPos val="l"/><c:numFmt formatCode="General" sourceLinked="1"/>' +
+    `<c:catAx><c:axId val="${ax1}"/>` +
+    `<c:scaling><c:orientation val="${vertical ? 'minMax' : 'maxMin'}"/></c:scaling>` +
+    `<c:delete val="0"/><c:axPos val="${vertical ? 'b' : 'l'}"/>` +
+    '<c:numFmt formatCode="General" sourceLinked="1"/>' +
     '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>' +
     `<c:spPr><a:noFill/><a:ln w="9525"><a:solidFill><a:srgbClr val="${BORDA}"/></a:solidFill></a:ln></c:spPr>` +
     txPr(1100, TINTA) +
@@ -353,11 +408,12 @@ function graficoBarras({ cats, series, empilhado, cores, legenda }) {
 
   const valAx =
     `<c:valAx><c:axId val="${ax2}"/><c:scaling><c:orientation val="minMax"/></c:scaling>` +
-    '<c:delete val="1"/><c:axPos val="b"/>' +
-    `<c:numFmt formatCode="${FMT_MI}" sourceLinked="0"/>` +
+    `<c:delete val="1"/><c:axPos val="${vertical ? 'l' : 'b'}"/>` +
+    `<c:numFmt formatCode="${formato}" sourceLinked="0"/>` +
     '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="none"/>' +
     txPr(1000, FRACA) +
-    `<c:crossAx val="${ax1}"/><c:crosses val="max"/><c:crossBetween val="between"/></c:valAx>`
+    `<c:crossAx val="${ax1}"/><c:crosses val="${vertical ? 'autoZero' : 'max'}"/>` +
+    '<c:crossBetween val="between"/></c:valAx>'
 
   return envelope(
     '<c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>' + grafico + catAx + valAx +
@@ -366,6 +422,72 @@ function graficoBarras({ cats, series, empilhado, cores, legenda }) {
       ? `<c:legend><c:legendPos val="b"/><c:overlay val="0"/>${txPr(1200, TINTA_2)}</c:legend>`
       : '') +
     '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>'
+  )
+}
+
+// ------------------------------------------------------------- tabelas ---
+// As matrizes ano × categoria do Histórico viram TABELA de verdade no slide
+// (a:tbl), não imagem: o texto continua editável e a tabela é redimensionável.
+// Sem `tableStyleId` — o pacote não carrega a peça de estilos de tabela, então
+// cada célula leva o próprio preenchimento.
+function celula(texto, o = {}) {
+  const p = paragrafo({
+    algn: o.algn || 'r',
+    runs: [{ t: texto, sz: o.sz || 1100, b: o.b, cor: o.cor || TINTA_2 }],
+  })
+  const fundo = o.fundo
+    ? `<a:solidFill><a:srgbClr val="${o.fundo}"/></a:solidFill>`
+    : '<a:noFill/>'
+  // Sem estilo de tabela no pacote, o consumidor desenha borda em tudo por
+  // padrão. Só a linha de baixo é declarada; as outras três saem explicitamente
+  // sem preenchimento. Ordem obrigatória: lnL, lnR, lnT, lnB.
+  const semLinha = (t) => `<a:${t} w="9525"><a:noFill/></a:${t}>`
+  const linhas =
+    semLinha('lnL') + semLinha('lnR') + semLinha('lnT') +
+    `<a:lnB w="9525" cap="flat"><a:solidFill><a:srgbClr val="${BORDA}"/></a:solidFill></a:lnB>`
+  return (
+    '<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>' + p + '</a:txBody>' +
+    `<a:tcPr marL="${cm(0.16)}" marR="${cm(0.16)}" marT="${cm(0.08)}" marB="${cm(0.08)}" ` +
+    `anchor="ctr">${linhas}${fundo}</a:tcPr></a:tc>`
+  )
+}
+
+function tabela(o) {
+  const sz = o.larguras.length > 8 ? 950 : 1100
+  const larguras = o.larguras.map((w) => `<a:gridCol w="${cm(w)}"/>`).join('')
+  const cabecalho =
+    `<a:tr h="${cm(0.85)}">` +
+    o.cabecalho
+      .map((t, i) => celula(t, { algn: i === 0 ? 'l' : 'r', b: true, sz: sz - 100, cor: FRACA }))
+      .join('') +
+    '</a:tr>'
+  const corpo = o.linhas
+    .map(
+      (linha) =>
+        `<a:tr h="${cm(0.78)}">` +
+        linha
+          .map((c, i) =>
+            celula(typeof c === 'object' ? c.t : c, {
+              algn: i === 0 ? 'l' : 'r',
+              b: i === 0 || (typeof c === 'object' && c.b),
+              sz,
+              cor: i === 0 ? TINTA : TINTA_2,
+              fundo: typeof c === 'object' ? c.fundo : undefined,
+            })
+          )
+          .join('') +
+        '</a:tr>'
+    )
+    .join('')
+  return (
+    `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${o.id}" name="${esc(o.nome)}"/>` +
+    '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/>' +
+    '</p:nvGraphicFramePr>' +
+    `<p:xfrm><a:off x="${cm(o.x)}" y="${cm(o.y)}"/><a:ext cx="${cm(o.w)}" cy="${cm(o.h)}"/></p:xfrm>` +
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">' +
+    '<a:tbl><a:tblPr firstRow="1" bandRow="1"/>' +
+    `<a:tblGrid>${larguras}</a:tblGrid>${cabecalho}${corpo}</a:tbl>` +
+    '</a:graphicData></a:graphic></p:graphicFrame>'
   )
 }
 
@@ -561,6 +683,8 @@ function slideCards(d) {
   return { corpo }
 }
 
+// Slide de um painel: título, subtítulo, total e o conteúdo — que pode ser um
+// gráfico (peça `chart` própria) ou uma tabela (desenhada no próprio slide).
 function slideGrafico(d, o) {
   const corpo = [
     forma({
@@ -575,92 +699,324 @@ function slideGrafico(d, o) {
     // quebrava em duas linhas quando o espaço era o de um número só.
     forma({
       id: 4, nome: 'Total', x: 21.2, y: 1.1, w: 11, h: 1.8, ancora: 'ctr',
-      paragrafos: [{ algn: 'r', runs: [{ t: o.total, sz: 2000, b: true, cor: TINTA }] }],
+      paragrafos: [{ algn: 'r', runs: [{ t: o.total || '', sz: 2000, b: true, cor: TINTA }] }],
     }),
-    quadroGrafico({ id: 5, nome: o.titulo, x: 1.4, y: 3.5, w: 31, h: 13.5, rel: 'rId2' }),
+    o.tabela
+      ? tabela({ ...o.tabela, id: 5, nome: o.titulo, x: 1.4, y: 3.5, w: 31, h: 13.5 })
+      : quadroGrafico({ id: 5, nome: o.titulo, x: 1.4, y: 3.5, w: 31, h: 13.5, rel: 'rId2' }),
     forma({
       id: 6, nome: 'Rodapé', x: 1.6, y: 17.2, w: 30.6, h: 1.1,
-      paragrafos: [{ runs: [{ t: `${d.recorte} · extraído em ${d.geradoEm}`, sz: 900, cor: FRACA }] }],
+      paragrafos: [{ runs: [{ t: `${o.recorte ?? d.recorte} · extraído em ${d.geradoEm}`, sz: 900, cor: FRACA }] }],
     }),
   ].join('')
   return { corpo, grafico: o.grafico, planilha: o.planilha }
 }
 
-function montarSlides(d) {
-  const s = []
-  s.push(slideCapa(d))
-  s.push(slideCards(d))
+// ---------------------------------------------------------------- painéis ---
+// Cada painel da tela vira uma entrada aqui, com um `id` estável. É esse id que
+// o botão PPTX de cada gráfico usa para exportar UM slide, e é a mesma lista
+// que monta o baralho inteiro — o slide avulso e o do baralho são o mesmo
+// código, então não têm como divergir.
 
-  // 3 — rosca por RP
+function paineisDashboard(d) {
   const rp = d.porRP.filter((x) => x.valor > 0).map((x) => ({ ...x, cor: corSolida(corDoRP(x.rp)) }))
-  s.push(slideGrafico(d, {
-    titulo: 'Emendas parlamentares ao PLOA',
-    sub: 'Valor solicitado por identificador de resultado primário (RP)',
-    total: fmtMilhoes(d.stats.valorTotal),
-    grafico: graficoRosca(rp),
-    planilha: planilha(rp.map((x) => x.rotulo), [
-      { nome: 'Valor (R$ milhões)', valores: rp.map((x) => x.valor / 1e6) },
-    ]),
-  }))
-
-  // 4 — rosca das impositivas
   const imp = d.impositivas.filter((x) => x.valor > 0).map((x) => ({ ...x, cor: corSolida(x.cor) }))
-  s.push(slideGrafico(d, {
-    titulo: 'Emendas impositivas',
-    sub: 'RP6 por tipo de autor · RP7 por bancada',
-    total: fmtMilhoes(d.totalImpositivas),
-    grafico: graficoRosca(imp),
-    planilha: planilha(imp.map((x) => x.rotulo), [
-      { nome: 'Valor (R$ milhões)', valores: imp.map((x) => x.valor / 1e6) },
-    ]),
-  }))
-
-  // 5 — 10 maiores autores
   const catsA = d.autores.map((a) => (a.uf && a.uf !== 'NA' ? `${a.nome} · ${a.uf}` : a.nome))
   const serieA = [{ nome: 'Valor (R$ milhões)', cor: VERDE, valores: d.autores.map((a) => a.valor / 1e6) }]
-  s.push(slideGrafico(d, {
-    titulo: '10 maiores autores',
-    sub: 'Deputados Federais e Senadores, por valor total · verde = Câmara, azul = Senado',
-    total: `${fmtMilhoes(d.totalAutores)} (${fmtPct(d.pctAutoresRP6)} do RP6)`,
-    grafico: graficoBarras({
-      cats: catsA,
-      series: serieA,
-      cores: d.autores.map((a) => (a.sigla === 'Sen' ? AZUL : VERDE)),
-    }),
-    planilha: planilha(catsA, serieA),
-  }))
-
-  // 6 — impositivas por C Mil A (empilhado RP6 + RP7)
   const catsC = d.cmila.map((c) => c.nome)
   const serieC = [
     { nome: 'RP6', cor: MAGENTA, valores: d.cmila.map((c) => c.rp6 / 1e6) },
     { nome: 'RP7', cor: AMARELO, valores: d.cmila.map((c) => c.rp7 / 1e6) },
   ]
-  s.push(slideGrafico(d, {
-    titulo: 'Impositivas por C Mil A',
-    sub: 'Somente UO do Exército (Comando do Exército, IMBEL e Fundo do Exército)',
-    total: fmtMilhoes(d.totalCMilA),
-    grafico: graficoBarras({ cats: catsC, series: serieC, empilhado: true, legenda: true }),
-    planilha: planilha(catsC, serieC),
-  }))
-
-  // 7 — emendas por partido
   const catsP = d.partidos.map((p) => p.partido)
   const serieP = [{ nome: 'Valor (R$ milhões)', cor: VIOLETA, valores: d.partidos.map((p) => p.valor / 1e6) }]
-  s.push(slideGrafico(d, {
-    titulo: 'Emendas por partido',
-    sub: 'Exclui comissões e bancadas (sem partido)',
-    total: fmtMilhoes(d.totalPartidos),
-    grafico: graficoBarras({ cats: catsP, series: serieP }),
-    planilha: planilha(catsP, serieP),
-  }))
 
-  return s
+  return [
+    {
+      id: 'rp',
+      titulo: 'Emendas parlamentares ao PLOA',
+      sub: 'Valor solicitado por identificador de resultado primário (RP)',
+      total: fmtMilhoes(d.stats.valorTotal),
+      grafico: graficoRosca(rp),
+      planilha: planilha(rp.map((x) => x.rotulo), [
+        { nome: 'Valor (R$ milhões)', valores: rp.map((x) => x.valor / 1e6) },
+      ]),
+    },
+    {
+      id: 'impositivas',
+      titulo: 'Emendas impositivas',
+      sub: 'RP6 por tipo de autor · RP7 por bancada',
+      total: fmtMilhoes(d.totalImpositivas),
+      grafico: graficoRosca(imp),
+      planilha: planilha(imp.map((x) => x.rotulo), [
+        { nome: 'Valor (R$ milhões)', valores: imp.map((x) => x.valor / 1e6) },
+      ]),
+    },
+    {
+      id: 'autores',
+      titulo: '10 maiores autores',
+      sub: 'Deputados Federais e Senadores, por valor total · verde = Câmara, azul = Senado',
+      total: `${fmtMilhoes(d.totalAutores)} (${fmtPct(d.pctAutoresRP6)} do RP6)`,
+      grafico: graficoBarras({
+        cats: catsA,
+        series: serieA,
+        cores: d.autores.map((a) => (a.sigla === 'Sen' ? AZUL : a.sigla === 'Dep' ? VERDE : FRACA)),
+      }),
+      planilha: planilha(catsA, serieA),
+    },
+    {
+      id: 'cmila',
+      titulo: 'Impositivas por C Mil A',
+      sub: 'Somente UO do Exército (Comando do Exército, IMBEL e Fundo do Exército)',
+      total: fmtMilhoes(d.totalCMilA),
+      grafico: graficoBarras({ cats: catsC, series: serieC, empilhado: true, legenda: true }),
+      planilha: planilha(catsC, serieC),
+    },
+    {
+      id: 'partidos',
+      titulo: 'Emendas por partido',
+      sub: 'Exclui comissões e bancadas (sem partido)',
+      total: fmtMilhoes(d.totalPartidos),
+      grafico: graficoBarras({ cats: catsP, series: serieP }),
+      planilha: planilha(catsP, serieP),
+    },
+  ]
+}
+
+// Larguras da tabela: as colunas de número recebem uma largura fixa confortável
+// (2,4 cm cabe "5.933,8" a 9,5 pt) e a primeira coluna fica com toda a sobra —
+// é ela que leva nomes longos como "Comando Militar da Amazônia Oriental".
+// Com muitos anos a coluna de nome encolhe até um piso e a fonte é que cede.
+function larguraTabela(nColunas) {
+  const dado = 2.4
+  const primeira = Math.max(5.5, 31 - dado * (nColunas - 1))
+  const resto = (31 - primeira) / (nColunas - 1)
+  return [primeira, ...Array.from({ length: nColunas - 1 }, () => resto)]
+}
+
+function paineisHistorico(d) {
+  const anos = d.anos
+  // Nas tabelas o número vai sem "R$" e sem "mi": a unidade é dita uma vez, no
+  // subtítulo, e a coluna fica estreita o suficiente para caber oito anos.
+  const fmtM = (v) =>
+    (v / 1e6).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const emMilhoes = 'valores em R$ milhões'
+  // Linha da matriz: nome + um valor por ano + total, com o fundo indicando a
+  // variação sobre o ano anterior — a mesma leitura da tela.
+  const linhaMatriz = (l) => {
+    const celulas = l.valores.map((v, i) => {
+      const anterior = i > 0 ? l.valores[i - 1] || 0 : 0
+      const subiu = i > 0 && anterior > 0 && v > anterior
+      const desceu = i > 0 && anterior > 0 && v < anterior
+      return {
+        t: v > 0 ? fmtM(v) : '—',
+        fundo: subiu ? 'DDE9F8' : desceu ? 'FBE3D8' : undefined,
+      }
+    })
+    return [l.rotulo, ...celulas, { t: fmtM(l.total), b: true }]
+  }
+  const matriz = (m, rotuloColuna) => ({
+    cabecalho: [rotuloColuna, ...anos, 'Total'],
+    larguras: larguraTabela(anos.length + 2),
+    linhas: m.series.map(linhaMatriz),
+  })
+
+  return [
+    {
+      id: 'hist-valor',
+      titulo: 'Valor apresentado por ano',
+      sub: 'Total solicitado em cada exercício',
+      total: fmtMilhoes(d.totalPeriodo),
+      grafico: graficoBarras({
+        cats: anos,
+        series: [{ nome: 'Valor (R$ milhões)', cor: AZUL, valores: d.serieValor.map((v) => v / 1e6) }],
+        vertical: true,
+      }),
+      planilha: planilha(anos, [{ nome: 'Valor (R$ milhões)', valores: d.serieValor.map((v) => v / 1e6) }]),
+    },
+    {
+      id: 'hist-contagem',
+      titulo: 'Emendas e parlamentares por ano',
+      sub: 'Quantidade de emendas distintas e de autores distintos · tracejado = tendência linear',
+      total: `${fmtInt(d.serieEmendas.reduce((a, b) => a + b, 0))} emendas`,
+      grafico: graficoBarras({
+        cats: anos,
+        series: [
+          { nome: 'Emendas', cor: AZUL, valores: d.serieEmendas },
+          { nome: 'Parlamentares', cor: VERDE, valores: d.serieParlamentares },
+        ],
+        vertical: true, legenda: true, formato: FMT_INT, tendencia: true,
+      }),
+      planilha: planilha(anos, [
+        { nome: 'Emendas', valores: d.serieEmendas },
+        { nome: 'Parlamentares', valores: d.serieParlamentares },
+      ]),
+    },
+    {
+      id: 'hist-impositivas',
+      titulo: 'Emendas impositivas por ano',
+      sub: 'RP6 (individual) + RP7 (bancada)',
+      total: fmtMilhoes(d.serieImpositivo.reduce((a, b) => a + b, 0)),
+      grafico: graficoBarras({
+        cats: anos,
+        series: d.impositivasPorAno.map((s) => ({
+          nome: s.rotulo, cor: corSolida(s.cor), valores: s.valores.map((v) => v / 1e6),
+        })),
+        vertical: true, empilhado: true, legenda: true,
+      }),
+      planilha: planilha(anos, d.impositivasPorAno.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map((v) => v / 1e6),
+      }))),
+    },
+    {
+      id: 'hist-rp',
+      titulo: 'Composição por RP',
+      sub: 'Participação de cada identificador de resultado primário no ano',
+      total: '',
+      grafico: graficoBarras({
+        cats: anos,
+        series: d.rpPorAno.map((s) => ({
+          nome: s.rotulo, cor: corSolida(s.cor), valores: s.valores.map((v) => v / 1e6),
+        })),
+        vertical: true, proporcao: true, legenda: true, apagarAbaixo: 0.06,
+      }),
+      planilha: planilha(anos, d.rpPorAno.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map((v) => v / 1e6),
+      }))),
+    },
+    {
+      id: 'hist-modalidade',
+      titulo: 'Composição por modalidade',
+      sub: 'Individual, bancada estadual, comissão e relator — participação no ano',
+      total: '',
+      grafico: graficoBarras({
+        cats: anos,
+        series: d.modalidadePorAno.map((s) => ({
+          nome: s.rotulo, cor: corSolida(s.cor), valores: s.valores.map((v) => v / 1e6),
+        })),
+        vertical: true, proporcao: true, legenda: true, apagarAbaixo: 0.06,
+      }),
+      planilha: planilha(anos, d.modalidadePorAno.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map((v) => v / 1e6),
+      }))),
+    },
+    {
+      id: 'hist-forca',
+      titulo: 'Por Força',
+      sub: `Valor solicitado por Força, consolidando as UO de cada uma · ${emMilhoes} · azul = aumento, laranja = queda`,
+      total: '',
+      tabela: matriz(d.forcaPorAno, 'Força'),
+      recorte: d.recorteForca,
+    },
+    {
+      id: 'hist-cmila',
+      titulo: 'Impositivas por C Mil A',
+      sub: `RP6 + RP7 nas UO do Exército · ${emMilhoes} · azul = aumento, laranja = queda`,
+      total: '',
+      tabela: matriz(d.cmilaPorAno, 'C Mil A'),
+    },
+    {
+      id: 'hist-partidos',
+      titulo: 'Partidos por ano',
+      sub: `12 maiores no período · exclui comissões e bancadas · ${emMilhoes}`,
+      total: '',
+      tabela: matriz(d.partidosPorAno, 'Partido'),
+    },
+    {
+      id: 'hist-autores',
+      titulo: 'Autores recorrentes',
+      sub: `Parlamentares ordenados por número de exercícios com emenda apresentada · ${emMilhoes}`,
+      total: '',
+      tabela: matriz(d.autoresPorAno, 'Parlamentar'),
+    },
+  ]
+}
+
+// Slide de resumo do Histórico: um cartão por exercício, com a variação.
+function slideAnos(d) {
+  const n = d.anos.length
+  // Até 5 exercícios cabem numa fileira; daí em diante o slide vira duas
+  // fileiras, senão o cartão fica estreito demais e "R$ 13,4 mi" quebra em
+  // três linhas. O corpo do texto também acompanha a largura disponível.
+  const colunas = n <= 5 ? n : Math.ceil(n / 2)
+  const fileiras = Math.ceil(n / colunas)
+  const larg = Math.min(9.6, (31 - 0.6 * (colunas - 1)) / colunas)
+  const alt = fileiras === 1 ? 8.6 : 5.6
+  const apertado = larg < 6
+  const cartoes = d.anos.map((ano, i) => {
+    const c = fmtCompacto(d.serieValor[i])
+    const varia = i === 0
+      ? 'primeiro ano da série'
+      : `${d.serieValor[i] >= d.serieValor[i - 1] ? '▲' : '▼'} ${fmtPct(
+          Math.abs(((d.serieValor[i] - d.serieValor[i - 1]) / (d.serieValor[i - 1] || 1)) * 100)
+        )} vs. ano anterior`
+    const col = i % colunas
+    const fil = Math.floor(i / colunas)
+    return forma({
+      id: 10 + i,
+      nome: `Ano ${ano}`,
+      x: 1.4 + col * (larg + 0.6),
+      y: 4.6 + fil * (alt + 0.6),
+      w: larg,
+      h: alt,
+      fundo: CARTAO, borda: BORDA, raio: 4200, ancora: 'ctr', recuo: apertado ? 0.35 : 0.5,
+      paragrafos: [
+        { runs: [{ t: ano, sz: 1000, b: true, cor: FRACA, spc: 120 }] },
+        {
+          antes: 200,
+          runs: [{
+            t: `R$ ${c.valor} ${c.unidade}`.trim(),
+            sz: apertado ? 1700 : 2200, b: true, cor: TINTA,
+          }],
+        },
+        { antes: 200, runs: [{ t: varia, sz: apertado ? 800 : 950, b: true, cor: TINTA_2 }] },
+        {
+          antes: 220,
+          runs: [{
+            t: `${fmtInt(d.serieEmendas[i])} emendas · ${fmtInt(d.serieParlamentares[i])} parlamentares`,
+            sz: apertado ? 800 : 950, cor: TINTA_2,
+          }],
+        },
+        {
+          antes: 100,
+          runs: [{
+            t: `${fmtMilhoes(d.serieImpositivo[i])} impositivas`,
+            sz: apertado ? 800 : 950, cor: TINTA_2,
+          }],
+        },
+      ],
+    })
+  })
+  const corpo = [
+    forma({
+      id: 2, nome: 'Título', x: 1.6, y: 1.2, w: 30.6, h: 1.6,
+      paragrafos: [{ runs: [{ t: 'Comparativo por exercício', sz: 2400, b: true, cor: TINTA }] }],
+    }),
+    forma({
+      id: 3, nome: 'Recorte', x: 1.6, y: 2.5, w: 30.6, h: 1.4,
+      paragrafos: [{ runs: [{ t: d.recorte, sz: 1100, cor: FRACA }] }],
+    }),
+    ...cartoes,
+    forma({
+      id: 40, nome: 'Fonte', x: 1.6, y: 17.1, w: 30.6, h: 1,
+      paragrafos: [{ runs: [{ t: `${d.escopo} · extraído em ${d.geradoEm}`, sz: 900, cor: FRACA }] }],
+    }),
+  ].join('')
+  return { corpo }
+}
+
+function montarSlides(d) {
+  return [slideCapa(d), slideCards(d), ...paineisDashboard(d).map((o) => slideGrafico(d, o))]
+}
+
+function montarSlidesHistorico(d) {
+  return [slideCapa(d), slideAnos(d), ...paineisHistorico(d).map((o) => slideGrafico(d, o))]
 }
 
 // ------------------------------------------------------------- montagem ---
-export function exportarPPTX(d) {
-  const slides = montarSlides(d)
+// Monta o .pptx a partir de uma lista de slides já construídos. Serve aos três
+// usos: o baralho do Dashboard, o do Histórico e o slide avulso de um gráfico.
+function baixarPacote(d, slides, nomeBase) {
   const arquivos = []
   const tiposOverride = []
   const relsApresentacao = [
@@ -763,5 +1119,25 @@ export function exportarPPTX(d) {
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   })
-  baixar(blob, nomeArquivo('emendas apresentadas ao ploa', 'pptx'))
+  baixar(blob, nomeArquivo(nomeBase, 'pptx'))
+}
+
+// Baralho completo do Dashboard: capa, cards e um slide por gráfico.
+export function exportarPPTX(d) {
+  baixarPacote(d, montarSlides(d), 'emendas apresentadas ao ploa')
+}
+
+// Baralho completo da aba Histórico: capa, cartões por exercício e um slide
+// por painel (gráficos nativos e tabelas editáveis).
+export function exportarPPTXHistorico(d) {
+  baixarPacote(d, montarSlidesHistorico(d), 'historico das emendas ao ploa')
+}
+
+// Um gráfico, um slide. `id` é o mesmo identificador usado na lista de painéis,
+// então o slide avulso sai idêntico ao do baralho.
+export function exportarSlidePPTX(d, id) {
+  const paineis = id.startsWith('hist-') ? paineisHistorico(d) : paineisDashboard(d)
+  const painel = paineis.find((p) => p.id === id)
+  if (!painel) throw new Error(`painel desconhecido: ${id}`)
+  baixarPacote(d, [slideGrafico(d, painel)], painel.titulo)
 }

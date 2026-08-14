@@ -314,8 +314,8 @@ body {
 .painel-cab {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 0.35rem 1rem; flex-wrap: wrap;
-  /* espaço reservado no canto para o botão PNG, que é posicionado */
-  padding-right: 3.1rem;
+  /* espaço reservado no canto para os dois botões (PPTX e PNG), posicionados */
+  padding-right: 6.1rem;
   margin-bottom: 0.9rem; padding-bottom: 0.7rem;
   border-bottom: 1px solid var(--hairline);
 }
@@ -353,6 +353,8 @@ body {
 .btn-png:hover { color: var(--acento); border-color: var(--acento); }
 .btn-png:disabled { cursor: progress; opacity: 0.6; }
 .btn-png:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+/* o botão de slide fica à esquerda do de PNG, no mesmo canto */
+.btn-slide { right: 4.05rem; }
 
 /* --------------------------------------------------- rosca (donut) ------- */
 .pizza { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
@@ -654,6 +656,19 @@ body {
 .cartao-num { margin-left: auto; font-size: 0.68rem; color: var(--tinta-fraca); }
 
 .cartao-alerta { background: var(--alerta-fundo); border: 1px solid var(--alerta-borda); border-left-width: 5px; }
+/* OM e objeto no cartão fechado: rótulo pequeno em versalete + o texto em
+   tinta normal, para o olho pular direto ao conteúdo */
+.cartao-om {
+  margin: 0.5rem 0 0; display: grid; gap: 0.2rem;
+  font-size: 0.78rem; line-height: 1.35; text-align: left;
+}
+.cartao-om-bloco { display: flex; gap: 0.45rem; min-width: 0; }
+.cartao-om-rot {
+  flex: none; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--tinta-fraca); padding-top: 0.16em;
+  min-width: 3.2rem;
+}
+.cartao-om-txt { color: var(--tinta-2); font-weight: 600; min-width: 0; }
 .cartao-frase-alerta { margin: 0.5rem 0 0; font-size: 0.76rem; font-weight: 600; color: var(--alerta-texto); }
 
 /* detalhe */

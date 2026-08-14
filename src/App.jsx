@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   carregarDados, filtrarRegistros, opcoesDoFiltro, agruparPorEmenda,
   resumo, valorPorRP, valorImpositivas, impositivasPorCMilA, topAutores, valorPorPartido,
+  resumoPorAno, rpPorAno, modalidadePorAno, impositivasPorAno,
+  forcaPorAno, cmilaPorAno, partidosPorAno, autoresRecorrentes,
   FILTROS, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto,
 } from './dados.js'
 import { useUrlState } from './useUrlState.js'
-import { exportarPPTX } from './pptx.js'
+import { exportarPPTX, exportarPPTXHistorico, exportarSlidePPTX } from './pptx.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import TemaBotao from './components/TemaBotao.jsx'
 import BotaoPNG from './components/BotaoPNG.jsx'
+import BotaoPPTX from './components/BotaoPPTX.jsx'
 import GraficoPizza from './components/GraficoPizza.jsx'
 import GraficoBarras from './components/GraficoBarras.jsx'
 import GraficoBarrasSimples from './components/GraficoBarrasSimples.jsx'
@@ -122,8 +125,7 @@ export default function App() {
   // Carga do PPTX: os mesmos números que estão na tela, já filtrados. Montada
   // no clique (e não a cada render) para não custar nada enquanto ninguém
   // exporta — e para carimbar a hora da exportação, não a do render.
-  const baixarPPTX = () =>
-    exportarPPTX({
+  const cargaPPTX = () => ({
       titulo: 'EMENDAS PARLAMENTARES APRESENTADAS AO PLOA',
       escopo,
       recorte,
@@ -142,7 +144,41 @@ export default function App() {
       totalCMilA,
       partidos,
       totalPartidos,
-    })
+  })
+  const baixarPPTX = () => exportarPPTX(cargaPPTX())
+  const baixarSlide = (id) => exportarSlidePPTX(cargaPPTX(), id)
+
+  // Carga do PPTX da aba Histórico. Montada no clique, como a do Dashboard —
+  // as agregações só rodam quando alguém exporta de fato. As séries saem na
+  // mesma ordem de `anos`, que é a ordem dos eixos e das colunas das tabelas.
+  const cargaHistorico = () => {
+    const porAno = resumoPorAno(semAno)
+    const serie = (campo) => porAno.map((a) => a[campo])
+    return {
+      titulo: 'EMENDAS PARLAMENTARES APRESENTADAS AO PLOA',
+      escopo,
+      recorte: recorteHistorico,
+      recorteForca: `${recorteHistorico} · painel sem o filtro de Órgão`,
+      geradoEm: new Date().toLocaleString('pt-BR'),
+      fonte: dados.fonte,
+      stats: resumo(semAno),
+      anos: porAno.map((a) => a.ano),
+      serieValor: serie('valor'),
+      serieEmendas: serie('qtdEmendas'),
+      serieParlamentares: serie('qtdParlamentares'),
+      serieImpositivo: serie('impositivo'),
+      totalPeriodo: porAno.reduce((s, a) => s + a.valor, 0),
+      impositivasPorAno: impositivasPorAno(semAno).series,
+      rpPorAno: rpPorAno(semAno).series,
+      modalidadePorAno: modalidadePorAno(semAno).series,
+      forcaPorAno: forcaPorAno(semAnoNemOrgao),
+      cmilaPorAno: cmilaPorAno(semAno),
+      partidosPorAno: partidosPorAno(semAno, 12),
+      autoresPorAno: autoresRecorrentes(semAno, 12),
+    }
+  }
+  const baixarPPTXHistorico = () => exportarPPTXHistorico(cargaHistorico())
+  const baixarSlideHistorico = (id) => exportarSlidePPTX(cargaHistorico(), id)
 
   return (
     <div className="app">
@@ -187,12 +223,16 @@ export default function App() {
             Limpar filtros
           </button>
         )}
-        {aba === 'dashboard' && (
+        {(aba === 'dashboard' || aba === 'historico') && (
           <button
             type="button"
             className="btn-pptx"
-            onClick={baixarPPTX}
-            title="Baixar o Dashboard em PowerPoint editável com os filtros atuais"
+            onClick={aba === 'dashboard' ? baixarPPTX : baixarPPTXHistorico}
+            title={
+              aba === 'dashboard'
+                ? 'Baixar o Dashboard em PowerPoint editável com os filtros atuais'
+                : 'Baixar a aba Histórico em PowerPoint editável com os filtros atuais'
+            }
           >
             Exportar PPTX
           </button>
@@ -256,6 +296,7 @@ export default function App() {
                     <p className="painel-sub">Valor solicitado por identificador de resultado primário (RP)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(stats.valorTotal)}</span>
+                  <BotaoPPTX titulo="Emendas parlamentares ao PLOA" onExportar={() => baixarSlide('rp')} />
                   <BotaoPNG titulo="Emendas parlamentares ao PLOA" contexto={contextoExport} />
                 </div>
                 <GraficoPizza dados={porRP} total={stats.valorTotal} />
@@ -268,6 +309,7 @@ export default function App() {
                     <p className="painel-sub">RP6 por tipo de autor · RP7 por bancada</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalImpositivas)}</span>
+                  <BotaoPPTX titulo="Emendas impositivas" onExportar={() => baixarSlide('impositivas')} />
                   <BotaoPNG titulo="Emendas impositivas" contexto={contextoExport} />
                 </div>
                 <GraficoPizza dados={impositivas} total={totalImpositivas} />
@@ -280,6 +322,7 @@ export default function App() {
                     <p className="painel-sub">Somente UO do Exército (Comando do Exército, IMBEL e Fundo do Exército)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalCMilA)}</span>
+                  <BotaoPPTX titulo="Impositivas por C Mil A" onExportar={() => baixarSlide('cmila')} />
                   <BotaoPNG titulo="Impositivas por C Mil A" contexto={contextoExport} />
                 </div>
                 <GraficoBarras dados={impCMilA} />
@@ -295,6 +338,7 @@ export default function App() {
                     {fmtMilhoes(totalAutores)}
                     <span className="painel-total-nota"> ({fmtPct(pctAutoresRP6)} do RP6)</span>
                   </span>
+                  <BotaoPPTX titulo="10 maiores autores" onExportar={() => baixarSlide('autores')} />
                   <BotaoPNG titulo="10 maiores autores" contexto={contextoExport} />
                 </div>
                 <GraficoBarrasSimples dados={autoresTop} />
@@ -307,6 +351,7 @@ export default function App() {
                     <p className="painel-sub">Exclui comissões e bancadas (sem partido)</p>
                   </div>
                   <span className="painel-total">{fmtMilhoes(totalPartidos)}</span>
+                  <BotaoPPTX titulo="Emendas por partido" onExportar={() => baixarSlide('partidos')} />
                   <BotaoPNG titulo="Emendas por partido" contexto={contextoExport} />
                 </div>
                 <GraficoPartidos dados={partidos} />
@@ -338,6 +383,7 @@ export default function App() {
               registros={semAno}
               registrosTodasForcas={semAnoNemOrgao}
               contexto={contextoHistorico}
+              onExportarSlide={baixarSlideHistorico}
             />
           </section>
         )}

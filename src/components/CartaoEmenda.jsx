@@ -31,6 +31,26 @@ export default function CartaoEmenda({ grupo, aberto, onToggle, alerta = false }
           {incons.length > 0 && <span className="tag tag-incons">⚠ inconsistência</span>}
           <span className="cartao-num">Nº {grupo.emenda}</span>
         </div>
+        {/* OM e objeto ficam visíveis com o cartão fechado: é o que responde
+            "para onde vai e para quê" sem precisar abrir. Só existem onde a
+            planilha traz a identificação — hoje, quase toda em emendas do
+            Exército. */}
+        {(grupo.oms.length > 0 || grupo.objetos.length > 0) && (
+          <p className="cartao-om">
+            {grupo.oms.length > 0 && (
+              <span className="cartao-om-bloco">
+                <span className="cartao-om-rot">OM</span>
+                <span className="cartao-om-txt">{grupo.oms.join(' · ')}</span>
+              </span>
+            )}
+            {grupo.objetos.length > 0 && (
+              <span className="cartao-om-bloco">
+                <span className="cartao-om-rot">Objeto</span>
+                <span className="cartao-om-txt">{grupo.objetos.join(' · ')}</span>
+              </span>
+            )}
+          </p>
+        )}
         {alerta && frase && <p className="cartao-frase-alerta" role="alert">⚠ {frase}</p>}
       </button>
 
@@ -43,6 +63,8 @@ export default function CartaoEmenda({ grupo, aberto, onToggle, alerta = false }
               )}
               <dl>
                 <div><dt>UO</dt><dd>{r.uoCod} — {r.uo}</dd></div>
+                {r.om && <div><dt>OM</dt><dd>{r.om}</dd></div>}
+                {r.objeto && <div><dt>Objeto</dt><dd>{r.objeto}</dd></div>}
                 <div><dt>Funcional</dt><dd>{r.funcional}</dd></div>
                 <div><dt>Autor (UF)</dt><dd>{r.autorUF}</dd></div>
                 <div><dt>Localidade</dt><dd>{r.localidade}</dd></div>
