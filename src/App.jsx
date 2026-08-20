@@ -6,8 +6,34 @@ import {
   forcaPorAno, cmilaPorAno, partidosPorAno, autoresRecorrentes,
   FILTROS, fmtBRL, fmtInt, fmtMilhoes, fmtPct, fmtCompacto,
 } from './dados.js'
+// As agregações do PLOA entram com prefixo `ploa`: vários nomes coincidem com
+// os das emendas (`porRP`, `resumoPorAno`) porque respondem à mesma pergunta em
+// bases diferentes — e é justamente por isso que precisam ficar distinguíveis
+// à leitura, dentro de um arquivo que usa os dois conjuntos lado a lado.
+import {
+  FILTROS_PLOA, filtrarPLOA, opcoesPLOA,
+  somaFases as ploaSomaFases,
+  porAgregado as ploaPorAgregado,
+  porUO as ploaPorUO,
+  porRP as ploaPorRPFase,
+  ciclos as ploaCiclos,
+  plVsAutografo as ploaPlVsAutografo,
+  porAcao as ploaPorAcao,
+  porGND as ploaPorGND,
+  resumoPorAno as ploaResumoPorAno,
+  agregadoPorAno as ploaAgregadoPorAno,
+  uoPorAno as ploaUoPorAno,
+  rpPorAno as ploaRpPorAno,
+  gndPorAno as ploaGndPorAno,
+  acaoPorAno as ploaAcaoPorAno,
+  ciclosPorAno as ploaCiclosPorAno,
+  IDX_PL, IDX_AUTOGRAFO, fmtBi, FASE_ROTULOS,
+} from './ploa.js'
 import { useUrlState } from './useUrlState.js'
-import { exportarPPTX, exportarPPTXHistorico, exportarSlidePPTX } from './pptx.js'
+import {
+  exportarPPTX, exportarPPTXHistorico, exportarSlidePPTX,
+  exportarPPTXPLOA, exportarPPTXHistoricoPLOA,
+} from './pptx.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import TemaBotao from './components/TemaBotao.jsx'
 import BotaoPNG from './components/BotaoPNG.jsx'
@@ -19,13 +45,46 @@ import GraficoPartidos from './components/GraficoPartidos.jsx'
 import CartaoEmenda from './components/CartaoEmenda.jsx'
 import AbaInconsistencias from './components/AbaInconsistencias.jsx'
 import AbaHistorico from './components/AbaHistorico.jsx'
+import AbaPLOA from './components/AbaPLOA.jsx'
+import AbaHistoricoPLOA from './components/AbaHistoricoPLOA.jsx'
+import AbaEmendasAutografo from './components/AbaEmendasAutografo.jsx'
 
-const ABAS = [
-  { id: 'dashboard', rotulo: 'Dashboard' },
-  { id: 'emendas', rotulo: 'Emendas' },
-  { id: 'historico', rotulo: 'Histórico' },
-  { id: 'inconsistencias', rotulo: 'Inconsistências' },
+// Navegação em dois níveis. Cada seção responde por UMA base de dados:
+// "Resultado LEXOR" pelas emendas apresentadas (`Historico_emendas_apresentadas
+// .xlsx`) e "PLOA" pelas despesas por fase de elaboração
+// (`PLOA_Despesas_Elaboracao.xlsx`).
+//
+// O id da SUBABA continua sendo o único valor escrito na URL (`?aba=…`), e a
+// seção é deduzida dele. Isso preserva todos os links já compartilhados —
+// `?aba=historico` continua abrindo o Histórico das emendas — sem precisar de
+// um parâmetro novo nem de migração.
+const SECOES = [
+  {
+    id: 'lexor',
+    rotulo: 'Resultado LEXOR',
+    descricao: 'Emendas parlamentares apresentadas ao PLOA',
+    subabas: [
+      { id: 'dashboard', rotulo: 'Dashboard' },
+      { id: 'emendas', rotulo: 'Emendas' },
+      { id: 'historico', rotulo: 'Histórico' },
+      { id: 'inconsistencias', rotulo: 'Inconsistências' },
+    ],
+  },
+  {
+    id: 'ploa',
+    rotulo: 'PLOA',
+    descricao: 'Despesas do órgão 52000 por fase de elaboração',
+    subabas: [
+      { id: 'ploa-dashboard', rotulo: 'Dashboard PLOA' },
+      { id: 'ploa-emendas', rotulo: 'Emendas Autógrafo' },
+      { id: 'ploa-historico', rotulo: 'Histórico PLOA' },
+    ],
+  },
 ]
+const SECAO_DA_ABA = Object.fromEntries(
+  SECOES.flatMap((s) => s.subabas.map((sub) => [sub.id, s.id]))
+)
+const PRIMEIRA_SUBABA = Object.fromEntries(SECOES.map((s) => [s.id, s.subabas[0].id]))
 
 export default function App() {
   const [dados, setDados] = useState(null)
@@ -52,6 +111,35 @@ export default function App() {
   }, [dados, definirPadrao])
 
   const registros = dados?.registros ?? []
+  // Seção ativa, deduzida da subaba — a URL guarda só a subaba (ver SECOES).
+  const secaoId = SECAO_DA_ABA[aba] ?? 'lexor'
+  const secao = SECOES.find((s) => s.id === secaoId)
+
+  // ------------------------------------------------------------ base PLOA ---
+  // Base independente da das emendas: outro arquivo, outro escopo (o órgão
+  // 52000 inteiro) e outra unidade (a dotação). Um `dados.json` gerado antes
+  // desta versão não traz o bloco — daí o objeto vazio de reserva, que faz a
+  // seção PLOA aparecer vazia em vez de derrubar o app.
+  const ploa = dados?.ploa ?? { anos: [], registros: [], fasesVazias: {}, anosDuplicados: [] }
+  const ploaRegistros = ploa.registros ?? []
+  const ploaFiltrados = useMemo(
+    () => filtrarPLOA(ploaRegistros, filtros), [ploaRegistros, filtros]
+  )
+  // Os painéis que comparam as Forças entre si ignoram o filtro de Órgão —
+  // com o padrão do app (Exército) sobrariam uma barra e nenhuma comparação.
+  const ploaSemOrgao = useMemo(
+    () => filtrarPLOA(ploaRegistros, filtros, 'orgao'), [ploaRegistros, filtros]
+  )
+  // O Histórico PLOA ignora o Ano (é o que ele compara)…
+  const ploaSemAno = useMemo(
+    () => filtrarPLOA(ploaRegistros, filtros, 'ano'), [ploaRegistros, filtros]
+  )
+  // …e o painel por Força dele ignora os dois. Encadear duas chamadas não
+  // substitui a lista: a primeira já teria removido o que a segunda precisa ver.
+  const ploaSemAnoNemOrgao = useMemo(
+    () => filtrarPLOA(ploaRegistros, filtros, ['ano', 'orgao']), [ploaRegistros, filtros]
+  )
+
   const filtrados = useMemo(() => filtrarRegistros(registros, filtros), [registros, filtros])
   // A aba Histórico compara exercícios — ela é a única que ignora o filtro de Ano.
   const semAno = useMemo(() => filtrarRegistros(registros, filtros, 'ano'), [registros, filtros])
@@ -70,9 +158,21 @@ export default function App() {
   const impCMilA = useMemo(() => impositivasPorCMilA(filtrados), [filtrados])
   const autoresTop = useMemo(() => topAutores(filtrados, 10), [filtrados])
   const partidos = useMemo(() => valorPorPartido(filtrados), [filtrados])
-  // "Limpar filtros" só faz sentido se algum filtro estiver fora do padrão —
-  // o Ano começa preenchido e sozinho não conta como filtro do usuário.
-  const temFiltro = FILTROS.some((f) => !noPadrao(f.id, filtros[f.id]))
+  // Filtros aplicáveis à subaba em tela. Numa dotação orçamentária não existe
+  // partido, autor nem C Mil A — esses descrevem uma emenda parlamentar. Se a
+  // barra mantivesse todos, bastaria alguém selecionar um partido na seção das
+  // emendas e passar para o PLOA para a aba inteira zerar sem explicação.
+  //
+  // "Emendas Autógrafo" é a exceção dentro da seção PLOA: os cartões dela SÃO
+  // emendas, e os filtros de emenda continuam valendo. Esconder a barra cheia
+  // ali faria o partido selecionado na outra seção seguir filtrando a lista sem
+  // aparecer em lugar nenhum.
+  const filtrosVisiveis =
+    secaoId === 'ploa' && aba !== 'ploa-emendas' ? FILTROS_PLOA : FILTROS
+  // "Limpar filtros" só aparece se algo estiver fora do padrão — e olha apenas
+  // os filtros da tela, senão o botão surgiria no PLOA por causa de um filtro
+  // de partido que ali nem está sendo aplicado.
+  const temFiltro = filtrosVisiveis.some((f) => !noPadrao(f.id, filtros[f.id]))
 
   if (erro) {
     return <main className="carregando">Erro ao carregar os dados: {erro}</main>
@@ -180,6 +280,103 @@ export default function App() {
   const baixarPPTXHistorico = () => exportarPPTXHistorico(cargaHistorico())
   const baixarSlideHistorico = (id) => exportarSlidePPTX(cargaHistorico(), id)
 
+  // ------------------------------------------------ exportações da seção PLOA
+  // O recorte impresso no rodapé só cita os filtros que a seção PLOA aplica de
+  // fato — carimbar "Partido: PL" num painel que ignora o partido tornaria a
+  // imagem, sozinha, enganosa.
+  const filtrosAtivosPLOA = FILTROS_PLOA
+    .filter((f) => f.id !== 'ano' && filtros[f.id]?.size > 0)
+    .map((f) => `${f.rotulo}: ${[...filtros[f.id]].join(', ')}`)
+  const anosPloaEmTela = [...new Set(ploaFiltrados.map((r) => r.ano))].sort()
+  const anoTextoPLOA = anosPloaEmTela.length
+    ? `Exercício ${anosPloaEmTela.join(', ')}`
+    : `Todos os exercícios (${(ploa.anos ?? []).join(', ')})`
+  const recortePLOA = filtrosAtivosPLOA.length
+    ? `${anoTextoPLOA} · filtros — ${filtrosAtivosPLOA.join(' · ')}`
+    : `${anoTextoPLOA} · sem outros filtros`
+  const recorteHistPLOA = filtrosAtivosPLOA.length
+    ? `Todos os exercícios (${(ploa.anos ?? []).join(', ')}) · filtros — ${filtrosAtivosPLOA.join(' · ')}`
+    : `Todos os exercícios (${(ploa.anos ?? []).join(', ')}) · sem outros filtros`
+  const escopoPLOA = 'Ministério da Defesa · Órgão 52000 · todos os setores'
+  const totaisPLOA = ploaSomaFases(ploaFiltrados)
+  const contextoPLOA =
+    `PLOA — despesas por fase de elaboração — ${escopoPLOA}. ${recortePLOA}. ` +
+    `${fmtInt(ploaFiltrados.length)} dotações · autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}. ` +
+    `Extraído em ${new Date().toLocaleString('pt-BR')}.`
+  const contextoHistPLOA =
+    `PLOA — despesas por fase de elaboração — ${escopoPLOA}. ${recorteHistPLOA}. ` +
+    `${fmtInt(ploaSemAno.length)} dotações. ` +
+    `Extraído em ${new Date().toLocaleString('pt-BR')}.`
+
+  // Montadas no clique, como as demais: as agregações só rodam quando alguém
+  // exporta de fato, e a hora carimbada é a da exportação.
+  const cargaPLOA = () => ({
+    titulo: 'PLOA — DESPESAS POR FASE DE ELABORAÇÃO',
+    escopo: escopoPLOA,
+    recorte: recortePLOA,
+    recorteForca: `${recortePLOA} · painel sem o filtro de Órgão`,
+    geradoEm: new Date().toLocaleString('pt-BR'),
+    fonte: dados.fonte,
+    // A capa e os cartões servem às duas bases: quem monta a carga escreve a
+    // linha-resumo, porque só aqui se sabe se a unidade é "emendas" ou "dotações".
+    linhaResumo:
+      `${fmtInt(ploaFiltrados.length)} dotações · autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}`,
+    fases: FASE_ROTULOS,
+    qtdDotacoes: ploaFiltrados.length,
+    totalPL: totaisPLOA[IDX_PL],
+    totalAutografo: totaisPLOA[IDX_AUTOGRAFO],
+    agregados: ploaPorAgregado(ploaSemOrgao),
+    uos: ploaPorUO(ploaFiltrados),
+    rps: ploaPorRPFase(ploaFiltrados),
+    ciclos: ploaCiclos(ploaSemOrgao),
+    plAutografo: ploaPlVsAutografo(ploaSemOrgao),
+    acoes: ploaPorAcao(ploaFiltrados, 15),
+    gnds: ploaPorGND(ploaFiltrados),
+  })
+  const cargaHistPLOA = () => {
+    const porAno = ploaResumoPorAno(ploaSemAno)
+    return {
+      titulo: 'PLOA — HISTÓRICO DOS EXERCÍCIOS',
+      escopo: escopoPLOA,
+      recorte: recorteHistPLOA,
+      recorteForca: `${recorteHistPLOA} · painel sem o filtro de Órgão`,
+      geradoEm: new Date().toLocaleString('pt-BR'),
+      fonte: dados.fonte,
+      linhaResumo:
+        `${fmtInt(ploaSemAno.length)} dotações em ${porAno.length} exercícios · ` +
+        `autógrafo somado ${fmtBi(porAno.reduce((s2, a) => s2 + a.autografo, 0))}`,
+      anos: porAno.map((a) => a.ano),
+      resumoAnos: porAno,
+      totalPeriodo: porAno.reduce((s, a) => s + a.autografo, 0),
+      forcasPorAno: ploaAgregadoPorAno(ploaSemAnoNemOrgao),
+      uoPorAno: ploaUoPorAno(ploaSemAno),
+      rpPorAno: ploaRpPorAno(ploaSemAno),
+      gndPorAno: ploaGndPorAno(ploaSemAno),
+      acaoPorAno: ploaAcaoPorAno(ploaSemAno, 15),
+      ciclosPorAno: ploaCiclosPorAno(ploaSemAno),
+    }
+  }
+  const baixarPPTXPLOA = () => exportarPPTXPLOA(cargaPLOA())
+  const baixarSlidePLOA = (id) => exportarSlidePPTX(cargaPLOA(), id)
+  const baixarPPTXHistPLOA = () => exportarPPTXHistoricoPLOA(cargaHistPLOA())
+  const baixarSlideHistPLOA = (id) => exportarSlidePPTX(cargaHistPLOA(), id)
+
+  // Abas que exportam o baralho inteiro (as demais exportam só por gráfico).
+  const ABAS_COM_BARALHO = {
+    dashboard: { acao: baixarPPTX, dica: 'Baixar o Dashboard em PowerPoint editável com os filtros atuais' },
+    historico: { acao: baixarPPTXHistorico, dica: 'Baixar a aba Histórico em PowerPoint editável com os filtros atuais' },
+    'ploa-dashboard': { acao: baixarPPTXPLOA, dica: 'Baixar o Dashboard PLOA em PowerPoint editável com os filtros atuais' },
+    'ploa-historico': { acao: baixarPPTXHistPLOA, dica: 'Baixar o Histórico PLOA em PowerPoint editável com os filtros atuais' },
+  }
+
+  // Filtros exibidos na barra: só os que existem na base da seção ativa (ver
+  // `filtrosVisiveis`, definido junto com `temFiltro`). As opções vêm da base
+  // correspondente e são facetadas, então uma UO ou um RP novo na planilha
+  // aparece sozinho na lista, sem tocar no código.
+  const opcoesDe = (f) =>
+    secaoId === 'ploa' && aba !== 'ploa-emendas'
+      ? opcoesPLOA(ploaRegistros, filtros, f)
+      : opcoesDoFiltro(registros, filtros, f)
   return (
     <div className="app">
       <header className="cabecalho">
@@ -189,8 +386,26 @@ export default function App() {
           </div>
           <TemaBotao />
         </div>
-        <nav className="abas" role="tablist" aria-label="Seções">
-          {ABAS.map((a) => (
+
+        {/* Nível 1: a base de dados. Cada seção responde por uma planilha. */}
+        <nav className="secoes" role="tablist" aria-label="Seções">
+          {SECOES.map((s) => (
+            <button
+              key={s.id}
+              role="tab"
+              aria-selected={secaoId === s.id}
+              className={`secao${secaoId === s.id ? ' ativa' : ''}`}
+              onClick={() => irParaAba(PRIMEIRA_SUBABA[s.id])}
+              title={s.descricao}
+            >
+              {s.rotulo}
+            </button>
+          ))}
+        </nav>
+
+        {/* Nível 2: as subabas da seção ativa. */}
+        <nav className="abas" role="tablist" aria-label={`Subseções de ${secao.rotulo}`}>
+          {secao.subabas.map((a) => (
             <button
               key={a.id}
               role="tab"
@@ -209,11 +424,11 @@ export default function App() {
 
       <section className="filtros" aria-label="Filtros">
         <span className="filtros-rotulo">Filtros</span>
-        {FILTROS.map((f) => (
+        {filtrosVisiveis.map((f) => (
           <MultiSelect
             key={f.id}
             rotulo={f.rotulo}
-            opcoes={opcoesDoFiltro(registros, filtros, f)}
+            opcoes={opcoesDe(f)}
             selecionados={filtros[f.id]}
             onChange={(v) => setFiltro(f.id, v)}
           />
@@ -223,16 +438,12 @@ export default function App() {
             Limpar filtros
           </button>
         )}
-        {(aba === 'dashboard' || aba === 'historico') && (
+        {ABAS_COM_BARALHO[aba] && (
           <button
             type="button"
             className="btn-pptx"
-            onClick={aba === 'dashboard' ? baixarPPTX : baixarPPTXHistorico}
-            title={
-              aba === 'dashboard'
-                ? 'Baixar o Dashboard em PowerPoint editável com os filtros atuais'
-                : 'Baixar a aba Histórico em PowerPoint editável com os filtros atuais'
-            }
+            onClick={ABAS_COM_BARALHO[aba].acao}
+            title={ABAS_COM_BARALHO[aba].dica}
           >
             Exportar PPTX
           </button>
@@ -393,6 +604,39 @@ export default function App() {
             registros={filtrados}
             detalhe={detalhe}
             abrirDetalhe={abrirDetalhe}
+          />
+        )}
+
+        {aba === 'ploa-dashboard' && (
+          <AbaPLOA
+            registros={ploaFiltrados}
+            registrosTodasForcas={ploaSemOrgao}
+            anos={ploa.anos ?? []}
+            fasesVazias={ploa.fasesVazias ?? {}}
+            duplicados={ploa.anosDuplicados ?? []}
+            contexto={contextoPLOA}
+            onExportarSlide={baixarSlidePLOA}
+          />
+        )}
+
+        {aba === 'ploa-emendas' && (
+          <AbaEmendasAutografo
+            grupos={grupos}
+            registrosEmendas={registros}
+            registrosPLOA={ploaFiltrados}
+            anosPLOA={ploa.anos ?? []}
+            detalhe={detalhe}
+            abrirDetalhe={abrirDetalhe}
+          />
+        )}
+
+        {aba === 'ploa-historico' && (
+          <AbaHistoricoPLOA
+            registros={ploaSemAno}
+            registrosTodasForcas={ploaSemAnoNemOrgao}
+            duplicados={ploa.anosDuplicados ?? []}
+            contexto={contextoHistPLOA}
+            onExportarSlide={baixarSlideHistPLOA}
           />
         )}
       </main>
