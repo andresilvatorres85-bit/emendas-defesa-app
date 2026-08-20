@@ -59,8 +59,18 @@ jobs:
       - name: Build do front-end
         run: |
           npm ci
-          # versiona o cache do service worker a cada deploy
-          sed -i "s/emendas-md-v1/emendas-md-${GITHUB_SHA::8}/" public/sw.js
+          # Versiona o cache do service worker a cada deploy: o nome do cache
+          # passa a conter o SHA do commit, então um deploy novo invalida o
+          # anterior inteiro e ninguém fica com o bundle velho.
+          #
+          # O padrão casa QUALQUER valor de VERSAO — a versão anterior deste
+          # passo procurava a string literal 'emendas-md-v1' e, quando o nome
+          # mudou, o sed deixou de casar SEM ERRO, congelando o nome do cache.
+          # Por isso o `grep -q` logo abaixo: se um dia o formato da linha
+          # mudar, o build FALHA em vez de publicar um cache que nunca vira.
+          sed -i -E "s/^const VERSAO = '.*'/const VERSAO = 'analise-ploa-${GITHUB_SHA::8}'/" public/sw.js
+          grep -q "const VERSAO = 'analise-ploa-${GITHUB_SHA::8}'" public/sw.js \
+            || { echo "ERRO: não foi possível versionar o cache em public/sw.js"; exit 1; }
           npm run build
 
       - uses: actions/upload-pages-artifact@v3
