@@ -842,6 +842,206 @@ def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None, om_objeto=N
     return out
 
 
+# ---------------------------------------------------------------------------
+# REGRA 3 — PLOA: despesas por fase de elaboração
+# ---------------------------------------------------------------------------
+# Fonte: `PLOA_Despesas_Elaboracao.xlsx`, uma aba por exercício, com o valor de
+# cada dotação em cada fase da tramitação do projeto de lei orçamentária.
+# Escopo: TODO o órgão 52000 — aqui não há recorte por setor, porque a pergunta
+# da aba PLOA é "quanto foi para o Ministério da Defesa", e parte das UO do
+# órgão (a ALADA, por exemplo) responde pelo setor de Ciência & Tecnologia.
+#
+# 3.A — Fase ausente herda a fase anterior.
+#   A planilha não preenche a mesma sequência de colunas em todos os anos:
+#   2022 pára no Ciclo Plenário (Autógrafo zerado) e 2023 pula o Ciclo Plenário
+#   (o valor final está no Autógrafo). A ausência é do ANO, não da linha — um
+#   zero numa linha isolada é um zero de verdade (dotação criada só no Ciclo
+#   Geral começa com PL = 0, e isso é informação). Por isso a detecção é feita
+#   por COLUNA: fase cuja coluna inexiste, ou soma zero no ano inteiro, é
+#   considerada ausente e recebe o valor da fase anterior. O JSON guarda os
+#   valores crus (`fases`) e os já herdados (`fasesEf`), mais a lista de fases
+#   ausentes por ano — assim a tela pode dizer que o número foi repetido.
+#
+# 3.B — Anos com conteúdo idêntico são sinalizados, não removidos.
+#   Hoje a aba 2025 é cópia bit a bit da 2024 (mesmas 669 linhas, mesmos cinco
+#   valores). Descartar em silêncio esconderia o defeito; somar como se fossem
+#   exercícios distintos mentiria. O pipeline registra o par em
+#   `auditoria.anosDuplicados` e o app mostra o aviso na própria aba.
+FASES = [
+    ("pl", "PL"),
+    ("setorial", "Ciclo Setorial"),
+    ("geral", "Ciclo Geral"),
+    ("plenario", "Ciclo Plenário"),
+    ("autografo", "Autógrafo"),
+]
+FASE_IDS = [f[0] for f in FASES]
+FASE_ROTULOS = {f[0]: f[1] for f in FASES}
+
+# Sinônimos de coluna do arquivo do PLOA. Escopo próprio: no arquivo das
+# emendas "Subtítulo" é o localizador e não pode ser confundido com a
+# subfunção — e é exatamente essa a diferença entre as abas aqui (2024 traz
+# "Subtítulo" e não traz "Subfunção").
+ALIAS_PLOA = {
+    "Órgão (Cod)": ["Órgao (Cod)"],  # a aba do PLOA escreve sem o til
+    "Identificador Primário (Cod)": ["Identificador Primário", "RP", "RP (Cod)"],
+}
+
+GND_NOMES = {
+    "1": "Pessoal e encargos sociais",
+    "2": "Juros e encargos da dívida",
+    "3": "Outras despesas correntes",
+    "4": "Investimentos",
+    "5": "Inversões financeiras",
+    "6": "Amortização da dívida",
+    "9": "Reserva de contingência",
+}
+
+
+def _eh_planilha_ploa(caminho_xlsx):
+    """Distingue o arquivo do PLOA do arquivo das emendas pelo cabeçalho.
+
+    O reconhecimento é pelo FORMATO, não pelo nome do arquivo: renomear a
+    planilha na origem não quebra o pipeline, e um arquivo novo com o mesmo
+    formato é absorvido sozinho. A assinatura são as colunas de fase, que só
+    existem no arquivo de elaboração.
+    """
+    wb = openpyxl.load_workbook(caminho_xlsx, read_only=True, data_only=True)
+    try:
+        for nome in wb.sheetnames:
+            linhas = wb[nome].iter_rows(values_only=True)
+            try:
+                cabecalho = {str(c).strip() for c in next(linhas) if c is not None}
+            except StopIteration:
+                continue
+            if {"PL", "Ciclo Geral", "Autógrafo"} <= cabecalho:
+                return True
+        return False
+    finally:
+        wb.close()
+
+
+def _segmento_funcional(funcional, i):
+    """Segmento `i` do código funcional FF.SSS.PPPP.AAAA.LLLL.
+
+    Serve de reserva para as colunas que faltam em algum ano — 2024 não traz
+    "Subfunção", e o código funcional traz. Derivar do funcional é melhor que
+    um mapa por ano: vale para qualquer aba nova.
+    """
+    partes = str(funcional or "").split(".")
+    return partes[i].strip() if len(partes) > i else ""
+
+
+def _num(v):
+    """Valor monetário da célula. Texto com máscara ou vazio vira 0."""
+    if v is None or v == "":
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    limpo = str(v).strip().replace("R$", "").replace(".", "").replace(",", ".")
+    try:
+        return float(limpo)
+    except ValueError:
+        return 0.0
+
+
+def ler_ploa(caminho_xlsx, uos_nao_catalogadas=None):
+    """Lê o arquivo de elaboração e devolve (registros, fases_vazias_por_ano)."""
+    wb = openpyxl.load_workbook(caminho_xlsx, read_only=True, data_only=True)
+    registros, fases_vazias = [], {}
+    abas_ano = [n for n in wb.sheetnames if re.fullmatch(r"\s*20\d{2}\s*", str(n))]
+    for nome in abas_ano:
+        ano = str(nome).strip()
+        ws = wb[nome]
+        linhas = ws.iter_rows(values_only=True)
+        cabecalho = [str(c).strip() if c is not None else "" for c in next(linhas)]
+        do_ano = []
+        for linha in linhas:
+            d = dict(zip(cabecalho, linha))
+            for canonico, sinonimos in ALIAS_PLOA.items():
+                if not d.get(canonico):
+                    for s in sinonimos:
+                        if d.get(s) not in (None, ""):
+                            d[canonico] = d[s]
+                            break
+            if str(d.get("Órgão (Cod)") or "").strip() != ORGAO_COD:
+                continue
+            funcional = str(d.get("Funcional") or "").strip()
+            uo_cod = str(d.get("UO (Cod)") or "").strip()
+            uo_nome = str(d.get("UO") or "").strip()
+            familia = familia_da_uo(uo_cod, uo_nome, uos_nao_catalogadas)
+            gnd = str(d.get("GND (Cod)") or "").strip()
+            do_ano.append({
+                "ano": ano,
+                "setorCod": str(d.get("Setor (Cod)") or "").strip(),
+                "setor": str(d.get("Setor") or "").strip(),
+                "uoCod": uo_cod,
+                "uo": uo_nome,
+                "orgao": FAMILIA_ORGAO[familia],
+                "uf": str(d.get("UF") or "").strip(),
+                "funcional": funcional,
+                "funcao": str(d.get("Função") or "").strip(),
+                "funcaoCod": (str(d.get("Função (Cod)") or "").strip()
+                              or _segmento_funcional(funcional, 0)),
+                "subfuncao": str(d.get("Subfunção") or "").strip(),
+                "subfuncaoCod": (str(d.get("Subfunção (Cod)") or "").strip()
+                                 or _segmento_funcional(funcional, 1)),
+                "programa": str(d.get("Programa") or "").strip(),
+                "programaCod": (str(d.get("Programa (Cod)") or "").strip()
+                                or _segmento_funcional(funcional, 2)),
+                "acao": str(d.get("Ação") or "").strip(),
+                "acaoCod": (str(d.get("Ação (Cod)") or "").strip()
+                            or _segmento_funcional(funcional, 3)),
+                "subtituloCod": (str(d.get("Subtítulo (Cod)") or "").strip()
+                                 or _segmento_funcional(funcional, 4)),
+                "gnd": gnd,
+                "gndNome": GND_NOMES.get(gnd, ""),
+                "rp": str(d.get("Identificador Primário (Cod)") or "").strip(),
+                "modAplic": str(d.get("Mod. Aplic. (Cod)") or "").strip(),
+                "fonte": str(d.get("Fonte (Cod)") or "").strip(),
+                "fases": [_num(d.get(rot)) for _, rot in FASES],
+            })
+
+        # REGRA 3.A — a ausência é da COLUNA no ANO, nunca da linha.
+        presentes = [rot in cabecalho for _, rot in FASES]
+        vazias = [
+            fid for i, (fid, _) in enumerate(FASES)
+            if not presentes[i] or not any(r["fases"][i] for r in do_ano)
+        ]
+        fases_vazias[ano] = vazias
+        indices_vazios = {FASE_IDS.index(f) for f in vazias}
+        for r in do_ano:
+            efetivas = []
+            for i in range(len(FASES)):
+                bruto = r["fases"][i]
+                if i in indices_vazios and i > 0:
+                    efetivas.append(efetivas[i - 1])
+                else:
+                    efetivas.append(bruto)
+            r["fasesEf"] = efetivas
+        print(f"  PLOA aba {ano}: {len(do_ano)} linhas do órgão {ORGAO_COD}"
+              + (f" | fase(s) sem valor, herdadas da anterior: "
+                 f"{', '.join(FASE_ROTULOS[f] for f in vazias)}" if vazias else ""))
+        registros.extend(do_ano)
+    wb.close()
+    return registros, fases_vazias
+
+
+def anos_duplicados_ploa(registros):
+    """REGRA 3.B — anos cujo conteúdo é idêntico ao de outro ano."""
+    assinatura = {}
+    for r in registros:
+        chave = (r["uoCod"], r["funcional"], r["gnd"], r["rp"], r["fonte"],
+                 r["modAplic"], tuple(r["fases"]))
+        assinatura.setdefault(r["ano"], []).append(chave)
+    resumo, pares = {a: tuple(sorted(v)) for a, v in assinatura.items()}, []
+    anos = sorted(resumo)
+    for i, a in enumerate(anos):
+        for b in anos[i + 1:]:
+            if resumo[a] == resumo[b]:
+                pares.append({"ano": b, "igualA": a, "linhas": len(resumo[a])})
+    return pares
+
+
 def main():
     if len(sys.argv) > 1:
         pasta = sys.argv[1]
@@ -857,6 +1057,15 @@ def main():
         ]
     if not arquivos:
         sys.exit("Nenhum arquivo .xlsx encontrado.")
+
+    # O repositório de dados guarda duas planilhas de naturezas diferentes: as
+    # emendas apresentadas e as despesas por fase de elaboração do PLOA. A
+    # triagem é pelo cabeçalho (ver `_eh_planilha_ploa`) — não pelo nome —,
+    # então uma planilha renomeada na origem continua caindo no lugar certo.
+    arquivos_ploa = [a for a in arquivos if _eh_planilha_ploa(a)]
+    arquivos = [a for a in arquivos if a not in arquivos_ploa]
+    if not arquivos:
+        sys.exit("Nenhuma planilha de emendas encontrada (só arquivos de PLOA).")
 
     # 1) Lê tudo e agrupa por ano. Ver REGRA 0 para a precedência entre o
     #    arquivo do exercício e a aba do consolidado.
@@ -915,6 +1124,37 @@ def main():
         for cod, info in sorted(uos_nao_catalogadas.items()):
             print(f"  {cod} {info['uo']} -> {info['familia']} (por {info['criterio']})")
 
+    # 3) PLOA — despesas por fase de elaboração (REGRA 3). Independente das
+    #    emendas: outro arquivo, outro escopo (o órgão inteiro) e outra chave.
+    ploa_registros, ploa_fases_vazias, ploa_uos = [], {}, {}
+    for arq in arquivos_ploa:
+        print(f"\nLendo PLOA {arq}")
+        regs, vazias = ler_ploa(arq, ploa_uos)
+        ploa_registros.extend(regs)
+        ploa_fases_vazias.update(vazias)
+    ploa_anos = sorted({r["ano"] for r in ploa_registros})
+    ploa_duplicados = anos_duplicados_ploa(ploa_registros)
+    # Enxuga o JSON: 3.300 dotações × 25 campos pesam num app que também carrega
+    # 4.600 registros de emenda. Campo vazio não vai, `gndNome` sai (há a tabela
+    # `gndNomes` no cabeçalho do bloco) e `fases` só é emitido quando difere de
+    # `fasesEf` — ou seja, apenas nos anos em que alguma fase foi herdada.
+    for r in ploa_registros:
+        r.pop("gndNome", None)
+        if r["fases"] == r["fasesEf"]:
+            r.pop("fases")
+        for chave in [k for k, v in r.items() if v == ""]:
+            del r[chave]
+    if ploa_registros:
+        print("\nPLOA por ano (valor da última fase preenchida):")
+        for ano in ploa_anos:
+            do_ano = [r for r in ploa_registros if r["ano"] == ano]
+            final = sum(r["fasesEf"][-1] for r in do_ano)
+            pl = sum(r["fasesEf"][0] for r in do_ano)
+            print(f"  {ano}: {len(do_ano)} linhas | PL R$ {pl:,.2f} | autógrafo R$ {final:,.2f}")
+    for d in ploa_duplicados:
+        print(f"  AVISO: a aba {d['ano']} é idêntica à aba {d['igualA']} "
+              f"({d['linhas']} linhas iguais) — sinalizado no app, não removido")
+
     n_incons = sum(1 for r in registros if r.get("inconsistencias"))
     n_mod = sum(1 for r in registros
                 if any(i["tipo"] == "modalidade" for i in r.get("inconsistencias", [])))
@@ -933,8 +1173,22 @@ def main():
             "revisadosDescartados": len(descartadas),
             "uosNaoCatalogadas": uos_nao_catalogadas,
             "falsosPositivosConhecidos": FALSOS_POSITIVOS_CONHECIDOS,
+            "anosDuplicadosPLOA": ploa_duplicados,
+            "uosNaoCatalogadasPLOA": ploa_uos,
         },
         "registros": registros,
+        # Bloco da aba PLOA. Vive separado de `registros` porque é outra base:
+        # outro arquivo, outro escopo (órgão inteiro, todos os setores) e outra
+        # unidade de análise (a dotação, não a emenda).
+        "ploa": {
+            "anos": ploa_anos,
+            "anoCorrente": ploa_anos[-1] if ploa_anos else "",
+            "fases": [{"id": i, "rotulo": r} for i, r in FASES],
+            "fasesVazias": ploa_fases_vazias,
+            "anosDuplicados": ploa_duplicados,
+            "gndNomes": GND_NOMES,
+            "registros": ploa_registros,
+        },
     }
     os.makedirs(os.path.dirname(os.path.abspath(SAIDA)), exist_ok=True)
     with open(SAIDA, "w", encoding="utf-8") as f:

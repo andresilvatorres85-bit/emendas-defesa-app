@@ -10,7 +10,13 @@
  * A versão do cache muda a cada deploy (substituída no build pelo workflow,
  * ou atualize manualmente ao publicar).
  */
-const VERSAO = 'emendas-md-v1'
+// A versão nomeia o cache: mudá-la descarta o anterior inteiro na ativação.
+// Precisa subir sempre que muda algo servido em cache-first — o manifest e os
+// ícones entram nessa conta. Sem subir aqui, quem já tem o app instalado
+// continuaria vendo o nome e o ícone antigos na tela inicial, porque o
+// manifest viria do cache velho mesmo com o servidor já publicando o novo.
+// v2: nome "Análise PLOA", ícones novos e seção PLOA.
+const VERSAO = 'analise-ploa-v2'
 const SHELL = ['./', './index.html', './manifest.webmanifest']
 
 self.addEventListener('install', (e) => {

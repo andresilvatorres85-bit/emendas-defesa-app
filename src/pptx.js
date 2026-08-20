@@ -298,16 +298,23 @@ function envelope(interno) {
 }
 
 // Rosca (doughnut) com rótulo de percentual e legenda à direita.
-function graficoRosca(itens) {
+// Rosca (doughnut) com rótulo de percentual e legenda à direita.
+// `escala` e `nomeSerie` existem porque as duas bases do app têm ordens de
+// grandeza diferentes: as emendas vêm em reais e são exibidas em milhões, o
+// PLOA vem em reais e é exibido em BILHÕES. Deixar o divisor fixo em 1e6 fazia
+// as fatias do PLOA caírem para 0,0000 no cache numérico do gráfico (que grava
+// com 4 casas) — tudo menos a maior fatia virava zero e a rosca saía com uma
+// única fatia de 100%.
+function graficoRosca(itens, { escala = 1e6, nomeSerie = 'Valor (R$ milhões)' } = {}) {
   const cats = itens.map((d) => d.rotulo)
-  const vals = itens.map((d) => d.valor / 1e6)
+  const vals = itens.map((d) => d.valor / escala)
   const cores = itens.map((d) => d.cor)
   const dLbls =
     '<c:dLbls>' + SEM_PINTURA + txPr(1200, TINTA, true) +
     '<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/>' +
     '<c:showSerName val="0"/><c:showPercent val="1"/><c:showBubbleSize val="0"/></c:dLbls>'
   const ser =
-    '<c:ser><c:idx val="0"/><c:order val="0"/>' + refNome('Valor (R$ milhões)', 'B') +
+    '<c:ser><c:idx val="0"/><c:order val="0"/>' + refNome(nomeSerie, 'B') +
     pontos(cores) + dLbls + refCat(cats) + refVal(vals, 'B') + '</c:ser>'
   return envelope(
     '<c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>' +
@@ -616,7 +623,11 @@ function slideCapa(d) {
         {
           antes: 300,
           runs: [{
-            t: `${fmtInt(d.stats.qtdEmendas)} emendas · ${fmtBRL(d.stats.valorTotal)}`,
+            // A capa serve às duas bases. As emendas dizem "N emendas · R$ X";
+            // o PLOA diz "N dotações · autógrafo R$ X bi". Quem monta a carga
+            // escreve a linha; a capa só a posiciona.
+            t: d.linhaResumo
+              ?? `${fmtInt(d.stats.qtdEmendas)} emendas · ${fmtBRL(d.stats.valorTotal)}`,
             sz: 1300, b: true, cor: TINTA_2,
           }],
         },
@@ -1005,12 +1016,390 @@ function slideAnos(d) {
   return { corpo }
 }
 
+// --------------------------------------------------------- painéis PLOA ---
+// Mesma mecânica dos painéis das emendas: uma lista de painéis com `id`
+// estável, da qual saem TANTO o baralho inteiro QUANTO o slide avulso — os
+// dois não têm como divergir porque são o mesmo código.
+//
+// A unidade aqui é o BILHÃO (o órgão inteiro, R$ 145 bi), contra o milhão das
+// emendas. O formato do rótulo acompanha, senão todo número sairia com seis
+// dígitos antes da vírgula.
+const FMT_BI = '#,##0.00&quot; bi&quot;'
+const bi = (v) => v / 1e9
+const fmtBiTxt = (v) =>
+  `R$ ${bi(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bi`
+const AQUA = '1BAF7A'
+const LARANJA = 'EB6834'
+const VERMELHO = 'E34948'
+const COR_AGREGADO = {
+  'MINISTÉRIO DA DEFESA': VIOLETA,
+  'EXÉRCITO': VERDE,
+  'MARINHA': AZUL,
+  'AERONÁUTICA': AQUA,
+}
+const COR_GND_PPTX = {
+  1: VERMELHO, 2: VIOLETA, 3: AZUL, 4: VERDE, 5: AQUA, 6: MAGENTA, 9: LARANJA,
+}
+
+function paineisPLOA(d) {
+  const rp = d.rps.filter((x) => x.valor > 0)
+    .map((x) => ({ ...x, cor: corSolida(corDoRP(x.rp)) }))
+
+  const catsForca = d.agregados.map((a) => a.rotulo)
+  const catsUO = d.uos.map((u) => `${u.uoCod} — ${u.uo}`)
+  // `acoes` chega como {itens, resto, total}: as maiores mais a linha que soma
+  // o restante. Achatar aqui mantém o total do slide igual ao da tela.
+  const acoes = [...d.acoes.itens, ...(d.acoes.resto ? [d.acoes.resto] : [])]
+  const catsAcao = acoes.map((a) => (a.acaoCod === '—' ? a.acao : `${a.acaoCod} — ${a.acao}`))
+  const catsGND = d.gnds.map((g) => `GND ${g.gnd}${g.nome ? ` — ${g.nome}` : ''}`)
+  // Par PL/Autógrafo, repetido em quatro painéis: é a comparação que esta base
+  // existe para mostrar.
+  const parPLAutografo = (itens) => [
+    { nome: 'PL', cor: AZUL, valores: itens.map((x) => bi(x.pl)) },
+    { nome: 'Autógrafo', cor: LARANJA, valores: itens.map((x) => bi(x.valor ?? x.autografo)) },
+  ]
+
+  return [
+    {
+      id: 'ploa-forcas',
+      titulo: 'Total por Força',
+      sub: 'Soma das UO de cada Força e da Administração Direta do MD · valor no autógrafo',
+      total: fmtBiTxt(d.agregados.reduce((s, a) => s + a.valor, 0)),
+      recorte: d.recorteForca,
+      grafico: graficoBarras({
+        cats: catsForca,
+        series: [{ nome: 'Autógrafo (R$ bilhões)', valores: d.agregados.map((a) => bi(a.valor)) }],
+        cores: d.agregados.map((a) => COR_AGREGADO[a.id] || ACENTO),
+        formato: FMT_BI,
+      }),
+      planilha: planilha(catsForca, [
+        { nome: 'Autógrafo (R$ bilhões)', valores: d.agregados.map((a) => bi(a.valor)) },
+      ]),
+    },
+    {
+      id: 'ploa-uo',
+      titulo: 'Valor por Unidade Orçamentária',
+      sub: 'Todas as UO do órgão 52000 · comparação entre o PL e o autógrafo',
+      total: fmtBiTxt(d.uos.reduce((s, u) => s + u.valor, 0)),
+      grafico: graficoBarras({
+        cats: catsUO, series: parPLAutografo(d.uos), legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(catsUO, parPLAutografo(d.uos)),
+    },
+    {
+      id: 'ploa-rp',
+      titulo: 'Por Identificador de Resultado Primário',
+      sub: 'Composição do autógrafo por RP · RP6 e RP7 são as emendas impositivas',
+      total: fmtBiTxt(d.totalAutografo),
+      grafico: graficoRosca(rp),
+      planilha: planilha(rp.map((x) => x.rotulo), [
+        { nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => x.valor) },
+      ]),
+    },
+    {
+      id: 'ploa-ciclo',
+      titulo: 'Evolução no ciclo de aprovação',
+      sub: 'Valor de cada Força em cada fase: PL · Ciclo Setorial · Ciclo Geral · Ciclo Plenário · Autógrafo',
+      // Total das QUATRO Forças: este painel ignora o filtro de Órgão, e
+      // carimbar aqui o total do recorte filtrado contradiria o próprio gráfico.
+      total: fmtBiTxt(d.ciclos.reduce((s, a) => s + a.fases[a.fases.length - 1], 0)),
+      recorte: d.recorteForca,
+      // Colunas verticais: as fases são uma sequência ordenada e vão no eixo,
+      // como o ano nos painéis do Histórico.
+      grafico: graficoBarras({
+        cats: FASES_PPTX,
+        series: d.ciclos.map((a) => ({
+          nome: a.rotulo, cor: COR_AGREGADO[a.id] || ACENTO, valores: a.fases.map(bi),
+        })),
+        vertical: true, legenda: true, formato: FMT_BI, rotulos: false,
+      }),
+      planilha: planilha(FASES_PPTX, d.ciclos.map((a) => ({
+        nome: a.rotulo, valores: a.fases.map(bi),
+      }))),
+    },
+    {
+      id: 'ploa-pl-autografo',
+      titulo: 'Do PL ao Autógrafo',
+      sub: 'Saldo líquido do rito legislativo por Força',
+      total: (() => {
+        const s = d.plAutografo.reduce((t2, a) => t2 + (a.autografo - a.pl), 0)
+        return `${s >= 0 ? '+' : '−'} ${fmtBiTxt(Math.abs(s))}`
+      })(),
+      recorte: d.recorteForca,
+      grafico: graficoBarras({
+        cats: d.plAutografo.map((a) => a.rotulo),
+        series: [
+          { nome: 'PL', cor: AZUL, valores: d.plAutografo.map((a) => bi(a.pl)) },
+          { nome: 'Autógrafo', cor: LARANJA, valores: d.plAutografo.map((a) => bi(a.autografo)) },
+        ],
+        vertical: true, legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(d.plAutografo.map((a) => a.rotulo), [
+        { nome: 'PL', valores: d.plAutografo.map((a) => bi(a.pl)) },
+        { nome: 'Autógrafo', valores: d.plAutografo.map((a) => bi(a.autografo)) },
+      ]),
+    },
+    {
+      id: 'ploa-acao',
+      titulo: 'Valor por Ação orçamentária',
+      sub: 'Maiores ações do recorte · comparação entre o PL e o autógrafo',
+      total: fmtBiTxt(acoes.reduce((s, a) => s + a.valor, 0)),
+      grafico: graficoBarras({
+        cats: catsAcao, series: parPLAutografo(acoes), legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(catsAcao, parPLAutografo(acoes)),
+    },
+    {
+      id: 'ploa-gnd',
+      titulo: 'Valor por Grupo de Natureza da Despesa',
+      sub: 'Composição do autógrafo por GND · comparação entre o PL e o autógrafo',
+      total: fmtBiTxt(d.gnds.reduce((s, g) => s + g.valor, 0)),
+      grafico: graficoBarras({
+        cats: catsGND, series: parPLAutografo(d.gnds), legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(catsGND, parPLAutografo(d.gnds)),
+    },
+  ]
+}
+
+const FASES_PPTX = ['PL', 'Ciclo Setorial', 'Ciclo Geral', 'Ciclo Plenário', 'Autógrafo']
+
+function paineisHistoricoPLOA(d) {
+  const anos = d.anos
+  const fmtB = (v) =>
+    bi(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const emBilhoes = 'valores em R$ bilhões'
+  const linhaMatriz = (l) => {
+    const celulas = l.valores.map((v, i) => {
+      const anterior = i > 0 ? l.valores[i - 1] || 0 : 0
+      const subiu = i > 0 && anterior > 0 && v > anterior
+      const desceu = i > 0 && anterior > 0 && v < anterior
+      return { t: v > 0 ? fmtB(v) : '—', fundo: subiu ? 'DDE9F8' : desceu ? 'FBE3D8' : undefined }
+    })
+    return [l.rotulo, ...celulas, { t: fmtB(l.total), b: true }]
+  }
+  const matriz = (series, rotuloColuna) => ({
+    cabecalho: [rotuloColuna, ...anos, 'Total'],
+    larguras: larguraTabela(anos.length + 2),
+    linhas: series.map(linhaMatriz),
+  })
+
+  return [
+    {
+      id: 'hploa-total',
+      titulo: 'Autógrafo por exercício',
+      sub: 'Valor final aprovado em cada PLOA · linha tracejada = tendência do período',
+      total: fmtBiTxt(d.totalPeriodo),
+      grafico: graficoBarras({
+        cats: anos,
+        series: [{ nome: 'Autógrafo (R$ bilhões)', cor: AZUL, valores: d.resumoAnos.map((a) => bi(a.autografo)) }],
+        vertical: true, tendencia: true, formato: FMT_BI,
+      }),
+      planilha: planilha(anos, [
+        { nome: 'Autógrafo (R$ bilhões)', valores: d.resumoAnos.map((a) => bi(a.autografo)) },
+      ]),
+    },
+    {
+      id: 'hploa-rito',
+      titulo: 'PL × Autógrafo por exercício',
+      sub: 'Quanto o rito legislativo alterou o projeto em cada ano',
+      total: (() => {
+        const s = d.resumoAnos.reduce((t, a) => t + a.delta, 0)
+        return `${s >= 0 ? '+' : '−'} ${fmtBiTxt(Math.abs(s))}`
+      })(),
+      grafico: graficoBarras({
+        cats: anos,
+        series: [
+          { nome: 'PL', cor: AZUL, valores: d.resumoAnos.map((a) => bi(a.pl)) },
+          { nome: 'Autógrafo', cor: LARANJA, valores: d.resumoAnos.map((a) => bi(a.autografo)) },
+        ],
+        vertical: true, legenda: true, formato: FMT_BI, rotulos: false,
+      }),
+      planilha: planilha(anos, [
+        { nome: 'PL', valores: d.resumoAnos.map((a) => bi(a.pl)) },
+        { nome: 'Autógrafo', valores: d.resumoAnos.map((a) => bi(a.autografo)) },
+      ]),
+    },
+    {
+      id: 'hploa-ciclo',
+      titulo: 'Fases do ciclo por exercício',
+      sub: 'As cinco fases lado a lado em cada ano',
+      total: fmtBiTxt(d.totalPeriodo),
+      grafico: graficoBarras({
+        cats: anos,
+        series: d.ciclosPorAno.series.map((s, i) => ({
+          nome: s.rotulo,
+          cor: [VIOLETA, AZUL, VERDE, AQUA, LARANJA][i],
+          valores: s.valores.map(bi),
+        })),
+        vertical: true, legenda: true, formato: FMT_BI, rotulos: false,
+      }),
+      planilha: planilha(anos, d.ciclosPorAno.series.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map(bi),
+      }))),
+    },
+    {
+      id: 'hploa-forcas',
+      titulo: 'Por Força, ao longo dos exercícios',
+      sub: 'Valor no autógrafo de cada Força em cada ano',
+      total: fmtBiTxt(d.forcasPorAno.series.reduce((s, x) => s + x.total, 0)),
+      recorte: d.recorteForca,
+      grafico: graficoBarras({
+        cats: d.forcasPorAno.anos,
+        series: d.forcasPorAno.series.map((s) => ({
+          nome: s.rotulo, cor: COR_AGREGADO[s.chave] || ACENTO, valores: s.valores.map(bi),
+        })),
+        vertical: true, legenda: true, formato: FMT_BI, rotulos: false,
+      }),
+      planilha: planilha(d.forcasPorAno.anos, d.forcasPorAno.series.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map(bi),
+      }))),
+    },
+    {
+      id: 'hploa-rp',
+      titulo: 'Composição por RP',
+      sub: 'Participação de cada resultado primário no autógrafo de cada ano',
+      total: fmtBiTxt(d.totalPeriodo),
+      grafico: graficoBarras({
+        cats: d.rpPorAno.anos,
+        series: d.rpPorAno.series.map((s) => ({
+          nome: s.rotulo, cor: corSolida(corDoRP(s.chave)), valores: s.valores.map(bi),
+        })),
+        vertical: true, proporcao: true, legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(d.rpPorAno.anos, d.rpPorAno.series.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map(bi),
+      }))),
+    },
+    {
+      id: 'hploa-gnd',
+      titulo: 'Composição por GND',
+      sub: 'Valor por grupo de natureza da despesa em cada exercício',
+      total: fmtBiTxt(d.totalPeriodo),
+      grafico: graficoBarras({
+        cats: d.gndPorAno.anos,
+        series: d.gndPorAno.series.map((s) => ({
+          nome: s.rotulo, cor: COR_GND_PPTX[s.chave] || ACENTO, valores: s.valores.map(bi),
+        })),
+        vertical: true, empilhado: true, legenda: true, formato: FMT_BI,
+      }),
+      planilha: planilha(d.gndPorAno.anos, d.gndPorAno.series.map((s) => ({
+        nome: s.rotulo, valores: s.valores.map(bi),
+      }))),
+    },
+    {
+      id: 'hploa-uo',
+      titulo: 'Unidades orçamentárias por exercício',
+      sub: `Valor no autógrafo · ${emBilhoes}`,
+      total: fmtBiTxt(d.uoPorAno.series.reduce((s, l) => s + l.total, 0)),
+      tabela: matriz(d.uoPorAno.series, 'Unidade orçamentária'),
+    },
+    {
+      id: 'hploa-acao',
+      titulo: 'Maiores ações por exercício',
+      sub: `Valor no autógrafo · ${emBilhoes}`,
+      total: fmtBiTxt(d.acaoPorAno.series.reduce((s, l) => s + l.total, 0)),
+      tabela: matriz(d.acaoPorAno.series, 'Ação orçamentária'),
+    },
+  ]
+}
+
+// Cartões de abertura da seção PLOA: as pontas do rito e o tamanho do recorte.
+function slideCardsPLOA(d) {
+  const heroi = fmtCompacto(d.totalAutografo)
+  const pl = fmtCompacto(d.totalPL)
+  const delta = d.totalAutografo - d.totalPL
+  const dc = fmtCompacto(Math.abs(delta))
+  const pct = d.totalPL ? (delta / d.totalPL) * 100 : 0
+  const corpo = [
+    forma({
+      id: 2, nome: 'Título', x: 1.6, y: 1.2, w: 30.6, h: 1.6,
+      paragrafos: [{ runs: [{ t: 'Visão geral do exercício', sz: 2400, b: true, cor: TINTA }] }],
+    }),
+    forma({
+      id: 3, nome: 'Recorte', x: 1.6, y: 2.5, w: 30.6, h: 1,
+      paragrafos: [{ runs: [{ t: d.recorte, sz: 1100, cor: FRACA }] }],
+    }),
+    cartao(4, {
+      x: 1.6, y: 4.2, w: 15.2, h: 12.4, algn: 'ctr', sz: 5400,
+      rotulo: 'Autógrafo — valor final',
+      valor: `R$ ${heroi.valor} ${heroi.unidade}`.trim(),
+      nota: `${fmtBiTxt(d.totalAutografo)} · ${fmtInt(d.qtdDotacoes)} dotações`,
+    }),
+    cartao(5, {
+      x: 17.6, y: 4.2, w: 14.6, h: 3.8, algn: 'l',
+      rotulo: 'PL do Executivo', valor: `R$ ${pl.valor} ${pl.unidade}`.trim(),
+      nota: 'Ponto de partida do rito',
+    }),
+    cartao(6, {
+      x: 17.6, y: 8.5, w: 14.6, h: 3.8, algn: 'l',
+      rotulo: 'Saldo do rito',
+      valor: `${delta >= 0 ? '+' : '−'} R$ ${dc.valor} ${dc.unidade}`.trim(),
+      nota: `PL → autógrafo · ${delta >= 0 ? '+' : '−'}${fmtPct(Math.abs(pct))}`,
+    }),
+    cartao(7, {
+      x: 17.6, y: 12.8, w: 14.6, h: 3.8, algn: 'l',
+      rotulo: 'Unidades orçamentárias', valor: fmtInt(d.uos.length),
+      nota: 'UO com dotação no recorte',
+    }),
+    forma({
+      id: 8, nome: 'Fonte', x: 1.6, y: 17.1, w: 30.6, h: 1,
+      paragrafos: [{ runs: [{ t: `${d.escopo} · extraído em ${d.geradoEm}`, sz: 900, cor: FRACA }] }],
+    }),
+  ].join('')
+  return { corpo }
+}
+
+// Cartões de abertura do Histórico PLOA: um por exercício, com PL, autógrafo e
+// o saldo do rito. Com cinco exercícios cabem numa fileira só.
+function slideAnosPLOA(d) {
+  const n = d.resumoAnos.length || 1
+  const larg = Math.min(9.5, (30.6 - (n - 1) * 0.8) / n)
+  const apertado = larg < 7
+  const cartoes = d.resumoAnos.map((a, i) => {
+    const c = fmtCompacto(a.autografo)
+    const varia = a.variacao === null || !Number.isFinite(a.variacao)
+      ? 'primeiro da série'
+      : `${a.variacao >= 0 ? '▲' : '▼'} ${fmtPct(Math.abs(a.variacao))} vs. anterior`
+    return cartao(10 + i, {
+      x: 1.6 + i * (larg + 0.8), y: 5.2, w: larg, h: 9.6, algn: 'l',
+      rotulo: a.ano, sz: apertado ? 1700 : 2200,
+      valor: `R$ ${c.valor} ${c.unidade}`.trim(),
+      nota: `${varia}\nPL ${fmtBiTxt(a.pl)}\nsaldo ${a.delta >= 0 ? '+' : '−'} ${fmtBiTxt(Math.abs(a.delta))}`,
+    })
+  })
+  const corpo = [
+    forma({
+      id: 2, nome: 'Título', x: 1.6, y: 1.2, w: 30.6, h: 1.6,
+      paragrafos: [{ runs: [{ t: 'Comparativo por exercício', sz: 2400, b: true, cor: TINTA }] }],
+    }),
+    forma({
+      id: 3, nome: 'Recorte', x: 1.6, y: 2.5, w: 30.6, h: 1.4,
+      paragrafos: [{ runs: [{ t: d.recorte, sz: 1100, cor: FRACA }] }],
+    }),
+    ...cartoes,
+    forma({
+      id: 40, nome: 'Fonte', x: 1.6, y: 17.1, w: 30.6, h: 1,
+      paragrafos: [{ runs: [{ t: `${d.escopo} · extraído em ${d.geradoEm}`, sz: 900, cor: FRACA }] }],
+    }),
+  ].join('')
+  return { corpo }
+}
+
 function montarSlides(d) {
   return [slideCapa(d), slideCards(d), ...paineisDashboard(d).map((o) => slideGrafico(d, o))]
 }
 
 function montarSlidesHistorico(d) {
   return [slideCapa(d), slideAnos(d), ...paineisHistorico(d).map((o) => slideGrafico(d, o))]
+}
+
+function montarSlidesPLOA(d) {
+  return [slideCapa(d), slideCardsPLOA(d), ...paineisPLOA(d).map((o) => slideGrafico(d, o))]
+}
+
+function montarSlidesHistoricoPLOA(d) {
+  return [slideCapa(d), slideAnosPLOA(d), ...paineisHistoricoPLOA(d).map((o) => slideGrafico(d, o))]
 }
 
 // ------------------------------------------------------------- montagem ---
@@ -1133,10 +1522,28 @@ export function exportarPPTXHistorico(d) {
   baixarPacote(d, montarSlidesHistorico(d), 'historico das emendas ao ploa')
 }
 
+// Baralho completo do Dashboard PLOA e do Histórico PLOA.
+export function exportarPPTXPLOA(d) {
+  baixarPacote(d, montarSlidesPLOA(d), 'ploa despesas por fase de elaboracao')
+}
+
+export function exportarPPTXHistoricoPLOA(d) {
+  baixarPacote(d, montarSlidesHistoricoPLOA(d), 'historico do ploa por exercicio')
+}
+
 // Um gráfico, um slide. `id` é o mesmo identificador usado na lista de painéis,
-// então o slide avulso sai idêntico ao do baralho.
+// então o slide avulso sai idêntico ao do baralho. O prefixo do id diz de qual
+// das quatro listas ele vem — é o que mantém as duas bases separadas sem
+// precisar de um parâmetro extra em cada botão da tela.
+const LISTAS_DE_PAINEIS = [
+  ['hploa-', paineisHistoricoPLOA],
+  ['ploa-', paineisPLOA],
+  ['hist-', paineisHistorico],
+]
+
 export function exportarSlidePPTX(d, id) {
-  const paineis = id.startsWith('hist-') ? paineisHistorico(d) : paineisDashboard(d)
+  const entrada = LISTAS_DE_PAINEIS.find(([prefixo]) => id.startsWith(prefixo))
+  const paineis = entrada ? entrada[1](d) : paineisDashboard(d)
   const painel = paineis.find((p) => p.id === id)
   if (!painel) throw new Error(`painel desconhecido: ${id}`)
   baixarPacote(d, [slideGrafico(d, painel)], painel.titulo)

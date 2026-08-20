@@ -3,9 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Análise das emendas parlamentares apresentadas ao PLOA — Ministério da Defesa (Órgão 52000)" />
-    <meta name="theme-color" content="#0f4429" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0b2118" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="Análise do PLOA do Ministério da Defesa (Órgão 52000): emendas parlamentares apresentadas e despesas por fase de elaboração, do projeto de lei ao autógrafo" />
+    <!-- Barra do sistema no azul-marinho do ícone, nos dois temas: quando o app
+         roda em janela própria (standalone), essa cor emoldura o aplicativo e
+         precisa combinar com o ícone que o abriu, não com o tema da página. -->
+    <meta name="theme-color" content="#072247" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Rótulo abaixo do ícone no iOS; no Android quem manda é o short_name do
+         manifest, e os dois dizem a mesma coisa de propósito. -->
+    <meta name="apple-mobile-web-app-title" content="Análise PLOA" />
+    <meta name="application-name" content="Análise PLOA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <script>
       // Aplica o tema salvo ANTES da primeira pintura (evita o flash claro/escuro).
@@ -14,9 +22,13 @@
         if (t === 'claro' || t === 'escuro') document.documentElement.dataset.tema = t
       } catch (e) {}
     </script>
-    <link rel="icon" href="./icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <title>Emendas PLOA — Ministério da Defesa</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <!-- O iOS não lê o manifest para o ícone da tela inicial: ele usa o
+         apple-touch-icon, e em 180x180 (o tamanho pedido pelos aparelhos
+         atuais) não há reamostragem na hora de instalar. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+    <title>Análise PLOA — Ministério da Defesa</title>
   </head>
   <body>
     <div id="root"></div>

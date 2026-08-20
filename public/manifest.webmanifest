@@ -1,17 +1,19 @@
 {
-  "name": "Emendas PLOA — Ministério da Defesa",
-  "short_name": "Emendas MD",
-  "description": "Análise das emendas parlamentares apresentadas ao PLOA — Órgão 52000 (Ministério da Defesa), Setor 13",
+  "name": "Análise PLOA",
+  "short_name": "Análise PLOA",
+  "description": "Análise do PLOA do Ministério da Defesa (Órgão 52000): emendas parlamentares apresentadas e despesas por fase de elaboração, do projeto de lei ao autógrafo",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f9f9f7",
-  "theme_color": "#14532d",
+  "background_color": "#072247",
+  "theme_color": "#072247",
   "icons": [
-    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./icons/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "./icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
