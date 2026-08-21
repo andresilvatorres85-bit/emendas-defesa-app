@@ -2,12 +2,12 @@ import { useMemo } from 'react'
 import { fmtCompacto, fmtInt, fmtPct } from '../dados.js'
 import {
   AGREGADOS, FASES, FASE_ROTULOS, IDX_PL, IDX_AUTOGRAFO,
-  porAgregado, porUO, porRP, ciclos, plVsAutografo, porAcao, porGND,
+  porAgregado, porUO, porRP, ciclos, plVsAutografo, acoesOrdenadas, porGND,
   somaFases, fmtBi, fmtVar, variacao,
 } from '../ploa.js'
 import BotaoPNG from './BotaoPNG.jsx'
 import BotaoPPTX from './BotaoPPTX.jsx'
-import GraficoPizza from './GraficoPizza.jsx'
+import GraficoCascata from './GraficoCascata.jsx'
 import GraficoBarrasPLOA from './GraficoBarrasPLOA.jsx'
 import GraficoColunasAno from './GraficoColunasAno.jsx'
 
@@ -43,7 +43,7 @@ export default function AbaPLOA({
   const rps = useMemo(() => porRP(registros), [registros])
   const cicloDados = useMemo(() => ciclos(todasForcas), [todasForcas])
   const plAut = useMemo(() => plVsAutografo(todasForcas), [todasForcas])
-  const acoes = useMemo(() => porAcao(registros, 15), [registros])
+  const acoesTodas = useMemo(() => acoesOrdenadas(registros), [registros])
   const gnds = useMemo(() => porGND(registros), [registros])
   const totais = useMemo(() => somaFases(registros), [registros])
 
@@ -83,13 +83,17 @@ export default function AbaPLOA({
   const serieCiclo = cicloDados.map((a) => ({
     chave: a.id, rotulo: a.rotulo, cor: a.cor, valores: a.fases,
   }))
-  // PL × Autógrafo: agora o eixo são as Forças e as duas séries são as pontas
-  // do rito — a comparação que o painel pede é entre elas, lado a lado.
+  // PL × Autógrafo: o eixo são as Forças e as duas séries são as pontas do
+  // rito. As barras herdam a COR DA FORÇA (item 4.5.6): a série é distinguida
+  // pela tonalidade, via `corPorColuna`, não por uma cor fixa de série.
   const catsForca = plAut.map((a) => a.rotulo)
+  const coresForca = plAut.map((a) => a.cor)
   const seriePLAut = [
-    { chave: 'pl', rotulo: 'PL', cor: 'var(--serie-azul)', valores: plAut.map((a) => a.pl) },
-    { chave: 'aut', rotulo: 'Autógrafo', cor: 'var(--serie-laranja)', valores: plAut.map((a) => a.autografo) },
+    { chave: 'pl', rotulo: 'PL', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.pl) },
+    { chave: 'aut', rotulo: 'Autógrafo', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.autografo) },
   ]
+  // Total por Força consolidando o PL (item 4.5.5), não o autógrafo.
+  const totalPLForcas = agregados.reduce((s, a) => s + a.pl, 0)
 
   return (
     <>
@@ -107,20 +111,25 @@ export default function AbaPLOA({
         </p>
       )}
 
-      <div className="destaque" role="region" aria-label="Indicadores do PLOA">
+      <div className="destaque destaque-ploa" role="region" aria-label="Indicadores do PLOA">
+        {/* Card maior: agora traz o VALOR FINAL APROVADO (autógrafo).
+            Título maior e conteúdo centralizado (item 4.4); sem o valor exato
+            repetido embaixo, que duplicava a informação (item 4.3). */}
         <section className="heroi">
-          <p className="heroi-rotulo">Autógrafo — valor final aprovado</p>
+          <p className="heroi-rotulo">Valor final aprovado</p>
           <p className="heroi-valor">
             R$ {heroi.valor}
             {heroi.unidade && <span className="heroi-unidade">{heroi.unidade}</span>}
           </p>
-          <p className="heroi-exato">{fmtBi(totalAutografo)}</p>
           <p className="heroi-nota">
-            Exercício {anosEmTela.join(', ')} · {fmtInt(registros.length)} dotações
+            Autógrafo · exercício {anosEmTela.join(', ')} · {fmtInt(registros.length)} dotações
           </p>
         </section>
 
         <div className="tiras">
+          {/* Antes "PL do Executivo" com o valor do PL; agora "Valor final
+              aprovado" foi para o card maior, e AQUI entrou o PL — os dois
+              cards trocaram de conteúdo (item 4.1). */}
           <section className="tira">
             <p className="tira-rotulo">PL do Executivo</p>
             <p className="tira-valor">
@@ -135,8 +144,9 @@ export default function AbaPLOA({
               {deltaRito >= 0 ? '+' : '−'} R$ {compacto.valor}
               <span className="tira-unidade">{compacto.unidade}</span>
             </p>
+            {/* item 4.2: "PL → Autógrafo = <variação>" */}
             <p className="tira-nota">
-              PL → autógrafo · {pctRito === null ? '—' : fmtVar(pctRito)}
+              PL → Autógrafo = {pctRito === null ? '—' : fmtVar(pctRito)}
             </p>
           </section>
           <section className="tira">
@@ -148,34 +158,53 @@ export default function AbaPLOA({
       </div>
 
       <div className="paineis">
-        {/* 1 — os quatro agregados */}
+        {/* 4.5.1 — RP em cascata + 4.5.2 — GND, lado a lado (dois p-6) */}
         <section className="painel-grafico p-6">
           <div className="painel-cab">
             <div className="painel-cab-txt">
-              <h2>Total por Força</h2>
+              <h2>Por Identificador de Resultado Primário</h2>
               <p className="painel-sub">
-                Soma de todas as UO de cada Força e da Administração Direta do MD · valor no autógrafo
+                Composição do autógrafo por RP, em cascata · RP6 e RP7 são as emendas impositivas
               </p>
             </div>
-            <span className="painel-total">{fmtBi(agregados.reduce((s, a) => s + a.valor, 0))}</span>
-            <BotaoPPTX titulo="Total por Força" onExportar={() => onExportarSlide('ploa-forcas')} />
-            <BotaoPNG titulo="Total por Força" contexto={contexto} />
+            <span className="painel-total">{fmtBi(totalAutografo)}</span>
+            <BotaoPPTX titulo="Por Identificador de Resultado Primário" onExportar={() => onExportarSlide('ploa-rp')} />
+            <BotaoPNG titulo="Por Identificador de Resultado Primário" contexto={contexto} />
           </div>
-          <GraficoBarrasPLOA
-            dados={agregados.map((a) => ({ chave: a.id, rotulo: a.rotulo, valor: a.valor, pl: a.pl, cor: a.cor }))}
-            rotuloGrafico="Valor total por Força no autógrafo"
-          />
-          <p className="painel-rodape">
-            Painel comparativo entre Forças — ignora o filtro de Órgão da barra superior.
-          </p>
+          <div className="rolagem-x">
+            <GraficoCascata
+              dados={rps.map((d) => ({ chave: d.rp, rotulo: d.rotulo, valor: d.valor, cor: d.cor }))}
+              rotuloGrafico="Composição do autógrafo por RP, em cascata"
+            />
+          </div>
         </section>
 
-        {/* 2 — por UO */}
         <section className="painel-grafico p-6">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Valor por Grupo de Natureza da Despesa</h2>
+              <p className="painel-sub">Composição do autógrafo por GND · barra = autógrafo, traço = PL</p>
+            </div>
+            <span className="painel-total">{fmtBi(gnds.reduce((s, g) => s + g.valor, 0))}</span>
+            <BotaoPPTX titulo="Valor por Grupo de Natureza da Despesa" onExportar={() => onExportarSlide('ploa-gnd')} />
+            <BotaoPNG titulo="Valor por Grupo de Natureza da Despesa" contexto={contexto} />
+          </div>
+          <GraficoBarrasPLOA
+            dados={gnds.map((g) => ({
+              chave: g.gnd, rotulo: g.nome || g.rotulo, sublinha: g.rotulo,
+              valor: g.valor, pl: g.pl, cor: g.cor,
+            }))}
+            comparar
+            rotuloGrafico="Valor por grupo de natureza da despesa, do PL ao autógrafo"
+          />
+        </section>
+
+        {/* 4.5.3 — UO em largura cheia, 4 itens + Mostrar +/−, barra = PL */}
+        <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Valor por Unidade Orçamentária</h2>
-              <p className="painel-sub">Todas as UO do órgão 52000 · barra = autógrafo, traço = PL</p>
+              <p className="painel-sub">Todas as UO do órgão 52000 · barra = PL, traço = autógrafo</p>
             </div>
             <span className="painel-total">{fmtBi(uos.reduce((s, u) => s + u.valor, 0))}</span>
             <BotaoPPTX titulo="Valor por Unidade Orçamentária" onExportar={() => onExportarSlide('ploa-uo')} />
@@ -187,28 +216,119 @@ export default function AbaPLOA({
               valor: u.valor, pl: u.pl, cor: AGREGADOS.find((a) => a.id === u.orgao)?.cor,
             }))}
             comparar
+            barra="pl"
+            limite={4}
+            passoExpansao={4}
             rotuloGrafico="Valor por unidade orçamentária, do PL ao autógrafo"
           />
         </section>
 
-        {/* 3 — por RP */}
-        <section className="painel-grafico p-6">
+        {/* 4.5.4 — Ação: 15 itens, expansão de 15 em 15, código destacado, barra = PL */}
+        <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
-              <h2>Por Identificador de Resultado Primário</h2>
-              <p className="painel-sub">Composição do autógrafo por RP · RP6 e RP7 são as emendas impositivas</p>
+              <h2>Valor por Ação orçamentária</h2>
+              <p className="painel-sub">
+                {fmtInt(acoesTodas.length)} ações do recorte · barra = PL, traço = autógrafo
+              </p>
             </div>
             <span className="painel-total">{fmtBi(totalAutografo)}</span>
-            <BotaoPPTX titulo="Por Identificador de Resultado Primário" onExportar={() => onExportarSlide('ploa-rp')} />
-            <BotaoPNG titulo="Por Identificador de Resultado Primário" contexto={contexto} />
+            <BotaoPPTX titulo="Valor por Ação orçamentária" onExportar={() => onExportarSlide('ploa-acao')} />
+            <BotaoPNG titulo="Valor por Ação orçamentária" contexto={contexto} />
           </div>
-          <GraficoPizza
-            dados={rps.map((d) => ({ ...d, valor: d.valor }))}
-            total={rps.reduce((s, d) => s + d.valor, 0)}
+          <GraficoBarrasPLOA
+            dados={acoesTodas.map((a) => ({
+              chave: a.acaoCod, rotulo: a.acao || a.acaoCod,
+              codigo: a.acaoCod !== '—' ? a.acaoCod : null,
+              valor: a.valor, pl: a.pl,
+            }))}
+            comparar
+            barra="pl"
+            corNumero="var(--serie-laranja)"
+            limite={15}
+            passoExpansao={15}
+            rotuloGrafico="Valor por ação orçamentária, do PL ao autógrafo"
           />
         </section>
 
-        {/* 4 — variação ao longo do ciclo */}
+        {/* 4.5.5 — Total por Força em largura cheia, cores institucionais, valor do PL */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Total por Força</h2>
+              <p className="painel-sub">
+                Soma de todas as UO de cada Força e da Administração Direta do MD · valor no PL
+              </p>
+            </div>
+            <span className="painel-total">{fmtBi(totalPLForcas)}</span>
+            <BotaoPPTX titulo="Total por Força" onExportar={() => onExportarSlide('ploa-forcas')} />
+            <BotaoPNG titulo="Total por Força" contexto={contexto} />
+          </div>
+          <GraficoBarrasPLOA
+            dados={agregados.map((a) => ({ chave: a.id, rotulo: a.rotulo, valor: a.pl, cor: a.cor }))}
+            rotuloGrafico="Valor total por Força no PL"
+          />
+          <p className="painel-rodape">
+            Painel comparativo entre Forças — ignora o filtro de Órgão da barra superior.
+          </p>
+        </section>
+
+        {/* 4.5.6 — PL → Autógrafo, barras na tonalidade da Força */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Do PL ao Autógrafo</h2>
+              <p className="painel-sub">
+                Saldo líquido do rito legislativo por Força · tom cheio = PL, tom claro = autógrafo
+              </p>
+            </div>
+            <span className="painel-total">
+              {deltaTodasForcas >= 0 ? '+' : '−'} {fmtBi(Math.abs(deltaTodasForcas))}
+            </span>
+            <BotaoPPTX titulo="Do PL ao Autógrafo" onExportar={() => onExportarSlide('ploa-pl-autografo')} />
+            <BotaoPNG titulo="Do PL ao Autógrafo" contexto={contexto} />
+          </div>
+          <div className="rolagem-x">
+            <GraficoColunasAno
+              anos={catsForca}
+              series={seriePLAut}
+              corPorColuna={coresForca}
+              formatar={fmtBi}
+              formatarTotal={() => ''}
+              rotuloEixo="Comparativo do valor no PL e no autógrafo, por Força"
+            />
+          </div>
+          <div className="ciclo-tabela" role="table" aria-label="Variação do PL para o autógrafo">
+            <div className="ciclo-linha ciclo-cab" role="row">
+              <span role="columnheader">Força</span>
+              <span role="columnheader">PL</span>
+              <span role="columnheader">Autógrafo</span>
+              <span role="columnheader">Variação</span>
+            </div>
+            {plAut.map((a) => (
+              <div className="ciclo-linha" role="row" key={a.id}>
+                <span role="cell" className="ciclo-nome">
+                  <span className="pbar-chave" style={{ background: a.cor }} aria-hidden />
+                  {a.rotulo}
+                </span>
+                <span role="cell" className="ciclo-cel"><span className="ciclo-val">{fmtBi(a.pl)}</span></span>
+                <span role="cell" className="ciclo-cel"><span className="ciclo-val">{fmtBi(a.autografo)}</span></span>
+                <span role="cell" className="ciclo-cel">
+                  <span className="ciclo-val">{a.delta >= 0 ? '+' : '−'} {fmtBi(Math.abs(a.delta))}</span>
+                  <span className={a.pct === null || a.pct === 0 ? 'var-nula' : a.pct > 0 ? 'var-sobe' : 'var-desce'}>
+                    {a.pct === null ? '—' : a.pct === 0 ? 'sem alteração'
+                      : `${a.pct > 0 ? '▲' : '▼'} ${fmtPct(Math.abs(a.pct))}`}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="painel-rodape">
+            Painel comparativo entre Forças — ignora o filtro de Órgão.
+          </p>
+        </section>
+
+        {/* 4.5.7 — Evolução no ciclo, cores das Forças */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
@@ -221,14 +341,16 @@ export default function AbaPLOA({
             <BotaoPPTX titulo="Evolução no ciclo de aprovação" onExportar={() => onExportarSlide('ploa-ciclo')} />
             <BotaoPNG titulo="Evolução no ciclo de aprovação" contexto={contexto} />
           </div>
-          <GraficoColunasAno
-            anos={FASE_ROTULOS}
-            series={serieCiclo}
-            formatar={fmtBi}
-            formatarTotal={(v) => fmtBi(v)}
-            rotuloEixo="Valor por Força em cada fase do ciclo de aprovação do PLOA"
-            vazio="Sem dotações para os filtros aplicados."
-          />
+          <div className="rolagem-x">
+            <GraficoColunasAno
+              anos={FASE_ROTULOS}
+              series={serieCiclo}
+              formatar={fmtBi}
+              formatarTotal={(v) => fmtBi(v)}
+              rotuloEixo="Valor por Força em cada fase do ciclo de aprovação do PLOA"
+              vazio="Sem dotações para os filtros aplicados."
+            />
+          </div>
           <div className="ciclo-tabela" role="table" aria-label="Variação percentual por fase">
             <div className="ciclo-linha ciclo-cab" role="row">
               <span role="columnheader">Força</span>
@@ -260,102 +382,6 @@ export default function AbaPLOA({
             Variação de cada fase sobre a anterior. Painel comparativo entre Forças — ignora o
             filtro de Órgão.
           </p>
-        </section>
-
-        {/* 5 — PL → Autógrafo */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Do PL ao Autógrafo</h2>
-              <p className="painel-sub">Saldo líquido do rito legislativo por Força</p>
-            </div>
-            <span className="painel-total">
-              {deltaTodasForcas >= 0 ? '+' : '−'} {fmtBi(Math.abs(deltaTodasForcas))}
-            </span>
-            <BotaoPPTX titulo="Do PL ao Autógrafo" onExportar={() => onExportarSlide('ploa-pl-autografo')} />
-            <BotaoPNG titulo="Do PL ao Autógrafo" contexto={contexto} />
-          </div>
-          <GraficoColunasAno
-            anos={catsForca}
-            series={seriePLAut}
-            formatar={fmtBi}
-            formatarTotal={() => ''}
-            rotuloEixo="Comparativo do valor no PL e no autógrafo, por Força"
-          />
-          <div className="ciclo-tabela" role="table" aria-label="Variação do PL para o autógrafo">
-            <div className="ciclo-linha ciclo-cab" role="row">
-              <span role="columnheader">Força</span>
-              <span role="columnheader">PL</span>
-              <span role="columnheader">Autógrafo</span>
-              <span role="columnheader">Variação</span>
-            </div>
-            {plAut.map((a) => (
-              <div className="ciclo-linha" role="row" key={a.id}>
-                <span role="cell" className="ciclo-nome">
-                  <span className="pbar-chave" style={{ background: a.cor }} aria-hidden />
-                  {a.rotulo}
-                </span>
-                <span role="cell" className="ciclo-cel"><span className="ciclo-val">{fmtBi(a.pl)}</span></span>
-                <span role="cell" className="ciclo-cel"><span className="ciclo-val">{fmtBi(a.autografo)}</span></span>
-                <span role="cell" className="ciclo-cel">
-                  <span className="ciclo-val">{a.delta >= 0 ? '+' : '−'} {fmtBi(Math.abs(a.delta))}</span>
-                  <span className={a.pct === null || a.pct === 0 ? 'var-nula' : a.pct > 0 ? 'var-sobe' : 'var-desce'}>
-                    {a.pct === null ? '—' : a.pct === 0 ? 'sem alteração'
-                      : `${a.pct > 0 ? '▲' : '▼'} ${fmtPct(Math.abs(a.pct))}`}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="painel-rodape">
-            Painel comparativo entre Forças — ignora o filtro de Órgão.
-          </p>
-        </section>
-
-        {/* 6 — por ação */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Valor por Ação orçamentária</h2>
-              <p className="painel-sub">
-                {acoes.total > acoes.itens.length
-                  ? `15 maiores de ${fmtInt(acoes.total)} ações · o restante somado na última linha`
-                  : `Todas as ${fmtInt(acoes.total)} ações do recorte`} · barra = autógrafo, traço = PL
-              </p>
-            </div>
-            <span className="painel-total">{fmtBi(totalAutografo)}</span>
-            <BotaoPPTX titulo="Valor por Ação orçamentária" onExportar={() => onExportarSlide('ploa-acao')} />
-            <BotaoPNG titulo="Valor por Ação orçamentária" contexto={contexto} />
-          </div>
-          <GraficoBarrasPLOA
-            dados={[...acoes.itens, ...(acoes.resto ? [acoes.resto] : [])].map((a) => ({
-              chave: a.acaoCod, rotulo: a.acao || a.acaoCod, sublinha: a.acaoCod !== '—' ? `Ação ${a.acaoCod}` : '',
-              valor: a.valor, pl: a.pl,
-            }))}
-            comparar
-            rotuloGrafico="Valor por ação orçamentária, do PL ao autógrafo"
-          />
-        </section>
-
-        {/* 7 — por GND */}
-        <section className="painel-grafico p-6">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Valor por Grupo de Natureza da Despesa</h2>
-              <p className="painel-sub">Composição do autógrafo por GND · barra = autógrafo, traço = PL</p>
-            </div>
-            <span className="painel-total">{fmtBi(gnds.reduce((s, g) => s + g.valor, 0))}</span>
-            <BotaoPPTX titulo="Valor por Grupo de Natureza da Despesa" onExportar={() => onExportarSlide('ploa-gnd')} />
-            <BotaoPNG titulo="Valor por Grupo de Natureza da Despesa" contexto={contexto} />
-          </div>
-          <GraficoBarrasPLOA
-            dados={gnds.map((g) => ({
-              chave: g.gnd, rotulo: g.nome || g.rotulo, sublinha: g.rotulo,
-              valor: g.valor, pl: g.pl, cor: g.cor,
-            }))}
-            comparar
-            rotuloGrafico="Valor por grupo de natureza da despesa, do PL ao autógrafo"
-          />
         </section>
       </div>
     </>

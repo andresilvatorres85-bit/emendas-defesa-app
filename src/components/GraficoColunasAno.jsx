@@ -44,6 +44,11 @@ export default function GraficoColunasAno({
   formatarTotal,
   rotularBarras = false,
   tendencia = false,
+  // Uma cor por POSIÇÃO do eixo (não por série), aplicada sobre cada barra
+  // agrupada daquela categoria. Usada quando o eixo é a Força e cada série
+  // (PL, Autógrafo) deve herdar a tonalidade da Força, distinguindo-se só pela
+  // opacidade. `corPorColuna[i]` corresponde ao rótulo `anos[i]`.
+  corPorColuna = null,
   rotuloEixo,
   vazio = 'Sem valores para os filtros aplicados.',
 }) {
@@ -120,15 +125,24 @@ export default function GraficoColunasAno({
                   </div>
                 ) : (
                   <div className="colunas-grupo">
-                    {series.map((s) => {
+                    {series.map((s, si) => {
                       const v = s.valores[i] || 0
+                      // Cor da barra: se `corPorColuna` está ativo, a barra herda
+                      // a cor da categoria (Força) do eixo, e as séries se
+                      // separam por uma leve variação de tom — a 2ª série (e
+                      // seguintes) é misturada com a superfície, ficando mais
+                      // clara sem perder o matiz da Força.
+                      const corBase = corPorColuna ? corPorColuna[i] : s.cor
+                      const cor = corPorColuna && si > 0
+                        ? `color-mix(in oklab, ${corBase} ${Math.max(30, 70 - si * 25)}%, var(--superficie))`
+                        : corBase
                       return (
                         <span
                           key={s.chave}
                           className="colunas-barra"
                           style={{
                             height: `${(v / max) * 100}%`,
-                            background: s.cor,
+                            background: cor,
                             opacity: hover === null || hover === s.chave ? 1 : 0.3,
                           }}
                           title={`${ano} · ${s.rotulo}: ${fmt(v)}`}

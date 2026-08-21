@@ -1030,12 +1030,19 @@ const fmtBiTxt = (v) =>
   `R$ ${bi(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bi`
 const AQUA = '1BAF7A'
 const LARANJA = 'EB6834'
+// Cores institucionais das Forças (espelham as CSS --forca-*): MD cinza,
+// Marinha "branco" (cinza-claro que ainda imprime no slide claro), Aeronáutica
+// azul, Exército verde.
+const FORCA_MD = '6B7280'
+const FORCA_EXERCITO = '1F7A33'
+const FORCA_MARINHA = 'C7CED8'
+const FORCA_AERONAUTICA = '2A78D6'
 const VERMELHO = 'E34948'
 const COR_AGREGADO = {
-  'MINISTÉRIO DA DEFESA': VIOLETA,
-  'EXÉRCITO': VERDE,
-  'MARINHA': AZUL,
-  'AERONÁUTICA': AQUA,
+  'MINISTÉRIO DA DEFESA': FORCA_MD,
+  'EXÉRCITO': FORCA_EXERCITO,
+  'MARINHA': FORCA_MARINHA,
+  'AERONÁUTICA': FORCA_AERONAUTICA,
 }
 const COR_GND_PPTX = {
   1: VERMELHO, 2: VIOLETA, 3: AZUL, 4: VERDE, 5: AQUA, 6: MAGENTA, 9: LARANJA,
@@ -1047,13 +1054,14 @@ function paineisPLOA(d) {
 
   const catsForca = d.agregados.map((a) => a.rotulo)
   const catsUO = d.uos.map((u) => `${u.uoCod} — ${u.uo}`)
-  // `acoes` chega como {itens, resto, total}: as maiores mais a linha que soma
-  // o restante. Achatar aqui mantém o total do slide igual ao da tela.
-  const acoes = [...d.acoes.itens, ...(d.acoes.resto ? [d.acoes.resto] : [])]
+  // No PPTX exportamos TODAS as ações (a tela pagina de 15 em 15; o slide não
+  // tem esse limite e o baralho serve de anexo completo).
+  const acoes = d.acoes
   const catsAcao = acoes.map((a) => (a.acaoCod === '—' ? a.acao : `${a.acaoCod} — ${a.acao}`))
   const catsGND = d.gnds.map((g) => `GND ${g.gnd}${g.nome ? ` — ${g.nome}` : ''}`)
-  // Par PL/Autógrafo, repetido em quatro painéis: é a comparação que esta base
-  // existe para mostrar.
+  // Par PL/Autógrafo, repetido em vários painéis: é a comparação que esta base
+  // existe para mostrar. Em UO e Ação a barra pedida é o PL (o autógrafo entra
+  // como segunda série); a ordem aqui deixa o PL como primeira série.
   const parPLAutografo = (itens) => [
     { nome: 'PL', cor: AZUL, valores: itens.map((x) => bi(x.pl)) },
     { nome: 'Autógrafo', cor: LARANJA, valores: itens.map((x) => bi(x.valor ?? x.autografo)) },
@@ -1063,17 +1071,17 @@ function paineisPLOA(d) {
     {
       id: 'ploa-forcas',
       titulo: 'Total por Força',
-      sub: 'Soma das UO de cada Força e da Administração Direta do MD · valor no autógrafo',
-      total: fmtBiTxt(d.agregados.reduce((s, a) => s + a.valor, 0)),
+      sub: 'Soma das UO de cada Força e da Administração Direta do MD · valor no PL',
+      total: fmtBiTxt(d.agregados.reduce((s, a) => s + a.pl, 0)),
       recorte: d.recorteForca,
       grafico: graficoBarras({
         cats: catsForca,
-        series: [{ nome: 'Autógrafo (R$ bilhões)', valores: d.agregados.map((a) => bi(a.valor)) }],
+        series: [{ nome: 'PL (R$ bilhões)', valores: d.agregados.map((a) => bi(a.pl)) }],
         cores: d.agregados.map((a) => COR_AGREGADO[a.id] || ACENTO),
         formato: FMT_BI,
       }),
       planilha: planilha(catsForca, [
-        { nome: 'Autógrafo (R$ bilhões)', valores: d.agregados.map((a) => bi(a.valor)) },
+        { nome: 'PL (R$ bilhões)', valores: d.agregados.map((a) => bi(a.pl)) },
       ]),
     },
     {
@@ -1091,9 +1099,16 @@ function paineisPLOA(d) {
       titulo: 'Por Identificador de Resultado Primário',
       sub: 'Composição do autógrafo por RP · RP6 e RP7 são as emendas impositivas',
       total: fmtBiTxt(d.totalAutografo),
-      grafico: graficoRosca(rp),
+      // Colunas por RP, uma cor por RP: a altura de cada coluna dá a leitura de
+      // tamanho que a cascata da tela oferece, e sai como gráfico nativo.
+      grafico: graficoBarras({
+        cats: rp.map((x) => x.rotulo),
+        series: [{ nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => bi(x.valor)) }],
+        cores: rp.map((x) => corSolida(corDoRP(x.rp))),
+        vertical: true, formato: FMT_BI,
+      }),
       planilha: planilha(rp.map((x) => x.rotulo), [
-        { nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => x.valor) },
+        { nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => bi(x.valor)) },
       ]),
     },
     {

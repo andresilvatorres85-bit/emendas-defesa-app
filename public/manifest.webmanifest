@@ -1,6 +1,6 @@
 {
-  "name": "Análise PLOA",
-  "short_name": "Análise PLOA",
+  "name": "Análise LOA",
+  "short_name": "Análise LOA",
   "description": "Análise do PLOA do Ministério da Defesa (Órgão 52000): emendas parlamentares apresentadas e despesas por fase de elaboração, do projeto de lei ao autógrafo",
   "lang": "pt-BR",
   "start_url": "./",

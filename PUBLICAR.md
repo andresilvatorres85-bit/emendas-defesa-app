@@ -1,82 +1,68 @@
-# Entrega v5 — seção PLOA, nome "Análise PLOA" e ícone novo
+# Entrega v6 — ajustes da aba PLOA + nome "Análise LOA"
 
-20 arquivos, 10 deles novos. Sem dependência npm nova: o `package-lock.json`
-**não muda** e o `npm ci` do workflow continua válido.
+20 arquivos. Sem dependência npm nova: o `package-lock.json` **não muda** e o
+`npm ci` do workflow continua válido.
 
-## Arquivos
+## O que mudou nesta rodada
 
-### Novos (10)
-| Arquivo | O que é |
-|---|---|
-| `src/ploa.js` | Camada de dados da nova base: filtros, fases, agregações e a junção emenda × autógrafo |
-| `src/components/AbaPLOA.jsx` | Subaba "Dashboard PLOA" (7 gráficos) |
-| `src/components/AbaHistoricoPLOA.jsx` | Subaba "Histórico PLOA" (8 painéis) |
-| `src/components/AbaEmendasAutografo.jsx` | Subaba "Emendas Autógrafo" |
-| `src/components/GraficoBarrasPLOA.jsx` | Barras horizontais com comparação PL × autógrafo |
-| `scripts/teste_ploa.mjs` | Teste de aceite em navegador da seção PLOA |
-| `public/icons/favicon-32.png` | Favicon |
-| `public/icons/icon-180.png` | apple-touch-icon (tela inicial do iOS) |
-| `public/icons/icon-maskable-512.png` | Ícone maskable do Android (arte a 80%, safe zone) |
-| — | (`icon-192.png` e `icon-512.png` são substituições, não novos) |
+**Aba PLOA (Dashboard):**
+- Subaba "Emendas Autógrafo" removida.
+- Nova ordem dos gráficos: RP (agora em **cascata**) e GND lado a lado; UO,
+  Ação, Total por Força, PL→Autógrafo e Ciclo em largura cheia.
+- Cards superiores: "Valor final aprovado" no card grande (sem valor duplicado),
+  PL na tira, "Saldo do rito" com texto "PL → Autógrafo = <variação>", títulos
+  maiores e centralizados.
+- UO mostra 4 itens com "Mostrar +/−"; Ação mostra 15, expande de 15 em 15, com
+  o código destacado em laranja. Nesses dois, a barra é o PL e o traço o autógrafo.
+- Cores institucionais das Forças (MD cinza, Exército verde, Marinha branco,
+  Aeronáutica azul), aplicadas também em PL→Autógrafo (por tonalidade) e Ciclo.
+- Total por Força consolida o PL, em largura cheia.
+- Rolagem horizontal dos gráficos no celular.
 
-### Substituídos (9)
-`index.html` · `public/manifest.webmanifest` · `public/sw.js` ·
-`public/icons/icon-192.png` · `public/icons/icon-512.png` ·
-`scripts/processar_dados.py` · `src/App.jsx` · `src/pptx.js` ·
-`src/styles.css` · `src/components/CartaoEmenda.jsx`
+**Globais:**
+- Cabeçalho: "ANÁLISE LOA — MINISTÉRIO DA DEFESA".
+- Rodapé: "Desenvolvido por Maj Torres · Fonte: SIGA Brasil · Dados processados…".
+- **Nome do app na tela inicial do celular: "Análise LOA"** (manifest + iOS).
 
 ## Como publicar (interface web do GitHub)
 
-**Em UM único commit.** Cada push dispara o workflow, e subir tudo de uma vez
-significa um build só, sem estado intermediário publicado.
+**Em UM único commit.** Cada push dispara o workflow; subir tudo de uma vez dá
+um build só, sem estado intermediário publicado.
 
 1. Repositório **`emendas-defesa-app`** → **Add file** → **Upload files**.
-2. Arraste o **conteúdo** da pasta `analise-ploa-v5` — as pastas
-   `.github/`, `public/`, `scripts/`, `src/` e o `index.html`. **Não arraste a
-   pasta `analise-ploa-v5` inteira**, senão tudo entra dentro de um diretório
-   novo e o build não acha nada. (`PUBLICAR.md` não precisa ir.)
-3. O arrasto preserva a estrutura de pastas; confira na lista antes de commitar
-   que aparece `src/components/AbaPLOA.jsx`, e não `AbaPLOA.jsx` solto.
-4. Escreva a mensagem de commit e confirme. **Commit directly to the `main`
-   branch.**
-5. Acompanhe em **Actions**. O workflow baixa as duas planilhas, regenera o
+2. Arraste o **conteúdo** da pasta `analise-loa-v6` (as pastas `.github/`,
+   `public/`, `scripts/`, `src/` e o `index.html`). **Não arraste a pasta
+   `analise-loa-v6` inteira**, senão tudo entra num diretório novo e o build não
+   acha nada. (O `PUBLICAR.md` não precisa ir.)
+3. Confira na lista que aparece `src/components/AbaPLOA.jsx` com o caminho
+   completo, e não `AbaPLOA.jsx` solto na raiz.
+4. Mensagem de commit + **Commit directly to the `main` branch**.
+5. Acompanhe em **Actions**: o workflow baixa as duas planilhas, regenera o
    `dados.json` e publica. Leva alguns minutos.
 
-### Se precisar dividir em dois envios
-Se o navegador engasgar com o lote, divida assim — a ordem importa:
+## ⚠ Um arquivo a APAGAR pela interface (o upload não apaga sozinho)
 
-- **1º envio: tudo, MENOS o `src/App.jsx`.** Nenhum desses arquivos é
-  referenciado pelo `App.jsx` antigo, então o app continua compilando e
-  funcionando como antes.
-- **2º envio: só o `src/App.jsx`.** É ele que liga a seção PLOA — a chave que
-  acende a luz depois de a fiação estar toda no lugar.
+A subaba "Emendas Autógrafo" foi removida, mas o upload de arquivos pela web do
+GitHub só adiciona/atualiza — nunca apaga. O arquivo abaixo ficará órfão no
+repositório. Ele **não quebra nada** (ninguém mais o importa), mas convém
+removê-lo para não deixar código morto:
 
-Na ordem inversa o build **falha** (o `App.jsx` novo importaria arquivos que
-ainda não existem). Não é grave — build que falha não publica, e o site no ar
-continua na versão anterior —, mas é um susto evitável.
+- `src/components/AbaEmendasAutografo.jsx` → abra o arquivo no GitHub, clique na
+  lixeira ("Delete this file") e confirme com um commit em `main`.
 
 ## Depois de publicar
 
 - **Ctrl+Shift+R uma vez** em quem já usava o app pelo navegador.
-- Quem tem o app **instalado no celular** pode precisar removê-lo e adicioná-lo
-  de novo à tela inicial para o nome e o ícone novos aparecerem: o sistema
-  operacional só relê o manifest no momento da instalação.
+- Quem tem o app **instalado no celular** precisa removê-lo e adicioná-lo de
+  novo à tela inicial para o nome "Análise LOA" e o ícone aparecerem: o sistema
+  só relê o manifest na instalação.
 
-## Pontos de atenção
+## Pontos de atenção que continuam valendo
 
-- **`deploy.yml` entrou na entrega por um motivo específico.** O passo que
-  versiona o cache procurava a string literal `emendas-md-v1`; com o nome novo
-  ele deixaria de casar **sem dar erro**, congelando o nome do cache em todo
-  deploy. Agora o padrão casa qualquer valor de `VERSAO` e há um `grep` que
-  **falha o build** se o formato da linha mudar — o modo de falha passa a ser
-  barulhento, em vez de silencioso.
-- **A aba 2025 do `PLOA_Despesas_Elaboracao.xlsx` é cópia idêntica da 2024**
-  (mesmas 669 linhas, mesmos cinco valores). O app sinaliza isso em tela e não
-  a remove. Se a planilha for corrigida na origem, o aviso some sozinho — a
-  detecção é por comparação de conteúdo, não por lista fixa.
-- **Fase sem valor herda a anterior**: 2022 não tem Autógrafo e 2023 não tem
-  Ciclo Plenário. A ausência é detectada por coluna dentro do ano, então um
-  zero numa linha isolada continua sendo um zero de verdade.
+- **Cache do service worker versionado** (`analise-ploa-v2` → `analise-loa-v3`).
+  É o que faz o nome novo chegar a quem já tinha o app — o manifest é
+  cache-first. O passo de build no workflow ainda reescreve essa linha com o SHA
+  do commit; conferido que o padrão do `sed` casa o novo valor.
+- **A aba 2025 do `PLOA_Despesas_Elaboracao.xlsx` é cópia idêntica da 2024** —
+  defeito na origem. O app sinaliza em tela; não há o que consertar em código.
 - **A triagem das planilhas é pelo cabeçalho, não pelo nome do arquivo.**
-  Renomear a planilha na origem não quebra o pipeline; uma planilha nova com o
-  mesmo formato é absorvida sozinha.

@@ -18,7 +18,7 @@ import {
   porRP as ploaPorRPFase,
   ciclos as ploaCiclos,
   plVsAutografo as ploaPlVsAutografo,
-  porAcao as ploaPorAcao,
+  acoesOrdenadas as ploaAcoesOrdenadas,
   porGND as ploaPorGND,
   resumoPorAno as ploaResumoPorAno,
   agregadoPorAno as ploaAgregadoPorAno,
@@ -47,7 +47,6 @@ import AbaInconsistencias from './components/AbaInconsistencias.jsx'
 import AbaHistorico from './components/AbaHistorico.jsx'
 import AbaPLOA from './components/AbaPLOA.jsx'
 import AbaHistoricoPLOA from './components/AbaHistoricoPLOA.jsx'
-import AbaEmendasAutografo from './components/AbaEmendasAutografo.jsx'
 
 // Navegação em dois níveis. Cada seção responde por UMA base de dados:
 // "Resultado LEXOR" pelas emendas apresentadas (`Historico_emendas_apresentadas
@@ -76,7 +75,6 @@ const SECOES = [
     descricao: 'Despesas do órgão 52000 por fase de elaboração',
     subabas: [
       { id: 'ploa-dashboard', rotulo: 'Dashboard PLOA' },
-      { id: 'ploa-emendas', rotulo: 'Emendas Autógrafo' },
       { id: 'ploa-historico', rotulo: 'Histórico PLOA' },
     ],
   },
@@ -330,7 +328,7 @@ export default function App() {
     rps: ploaPorRPFase(ploaFiltrados),
     ciclos: ploaCiclos(ploaSemOrgao),
     plAutografo: ploaPlVsAutografo(ploaSemOrgao),
-    acoes: ploaPorAcao(ploaFiltrados, 15),
+    acoes: ploaAcoesOrdenadas(ploaFiltrados),
     gnds: ploaPorGND(ploaFiltrados),
   })
   const cargaHistPLOA = () => {
@@ -382,7 +380,7 @@ export default function App() {
       <header className="cabecalho">
         <div className="cabecalho-topo">
           <div className="cabecalho-texto">
-            <h1>Emendas ao PLOA — Ministério da Defesa</h1>
+            <h1>ANÁLISE LOA — MINISTÉRIO DA DEFESA</h1>
           </div>
           <TemaBotao />
         </div>
@@ -619,17 +617,6 @@ export default function App() {
           />
         )}
 
-        {aba === 'ploa-emendas' && (
-          <AbaEmendasAutografo
-            grupos={grupos}
-            registrosEmendas={registros}
-            registrosPLOA={ploaFiltrados}
-            anosPLOA={ploa.anos ?? []}
-            detalhe={detalhe}
-            abrirDetalhe={abrirDetalhe}
-          />
-        )}
-
         {aba === 'ploa-historico' && (
           <AbaHistoricoPLOA
             registros={ploaSemAno}
@@ -643,8 +630,8 @@ export default function App() {
 
       <footer className="rodape">
         <p>
-          Dados processados em {new Date(dados.geradoEm).toLocaleString('pt-BR')} ·
-          C Mil A deduzido de Autor (UF); em MG, Uberlândia/Araguari → CMP, demais → CML.
+          Desenvolvido por Maj Torres · Fonte: SIGA Brasil · Dados processados em{' '}
+          {new Date(dados.geradoEm).toLocaleString('pt-BR')}.
         </p>
       </footer>
     </div>

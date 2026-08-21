@@ -21,6 +21,7 @@
   --superficie-2: light-dark(#f2f2ee, #232322);
   --tinta: light-dark(#0b0b0b, #ffffff);
   --tinta-2: light-dark(#52514e, #c3c2b7);
+  --tinta-3: light-dark(#77756f, #9b9a90);
   --tinta-fraca: light-dark(#7c7a74, #918f88);
   --hairline: light-dark(#e1e0d9, #2c2c2a);
   --borda: light-dark(rgba(11, 11, 11, 0.1), rgba(255, 255, 255, 0.1));
@@ -46,6 +47,16 @@
   --serie-violeta: light-dark(#4a3aa7, #9085e9);
   --serie-laranja: light-dark(#eb6834, #d95926);
   --serie-vermelho: light-dark(#e34948, #e66767);
+
+  /* Cores institucionais das Forças (usadas na aba PLOA). Escolha do usuário,
+     que sobrepõe a paleta do validador: MD cinza, Marinha "branco" que ainda
+     contraste sobre a superfície clara (por isso um cinza-claro, não #fff puro,
+     que sumiria), Aeronáutica no azul, Exército no verde. A tonalidade da barra
+     de cada Força nos gráficos PL×Autógrafo deriva destas por color-mix. */
+  --forca-md: light-dark(#6b7280, #9aa2ad);
+  --forca-exercito: light-dark(#1f7a33, #2e9c48);
+  --forca-marinha: light-dark(#c7ced8, #e8edf4);
+  --forca-aeronautica: light-dark(#2a78d6, #3987e5);
   --acento: var(--serie-azul);
 
   /* estado (nunca reutilizado como cor de série) */
@@ -265,55 +276,6 @@ body {
   margin: 0.75rem 0 0; font-size: 0.75rem; color: var(--tinta-3); line-height: 1.45;
 }
 
-/* subaba Emendas Autógrafo */
-.situacao-barra { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0 0 0.9rem; }
-.situacao-btn {
-  appearance: none; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 600;
-  padding: 0.35rem 0.8rem; border-radius: 999px;
-  background: var(--cartao); color: var(--tinta-2); border: 1px solid var(--borda);
-}
-.situacao-btn:hover { border-color: var(--acento); }
-.situacao-btn.ativa { background: var(--acento); color: #fff; border-color: transparent; }
-
-.tag-atendida {
-  background: color-mix(in oklab, var(--serie-verde) 18%, transparent);
-  border-color: color-mix(in oklab, var(--serie-verde) 45%, transparent);
-}
-.tag-nao-atendida {
-  background: color-mix(in oklab, var(--serie-laranja) 16%, transparent);
-  border-color: color-mix(in oklab, var(--serie-laranja) 45%, transparent);
-}
-
-.autografo-bloco {
-  margin: 0 0 0.9rem; padding: 0.75rem 0.9rem;
-  background: color-mix(in oklab, var(--acento) 6%, transparent);
-  border: 1px solid color-mix(in oklab, var(--acento) 28%, transparent);
-  border-radius: 10px;
-}
-.autografo-titulo {
-  margin: 0 0 0.5rem; font-size: 0.72rem; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--tinta-3);
-}
-.autografo-dest + .autografo-dest {
-  margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--borda);
-}
-.autografo-dest-cab {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0 0 0.45rem;
-}
-.autografo-dest-acao { font-weight: 700; font-size: 0.85rem; }
-.autografo-linhas { margin: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.autografo-linhas > div { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.82rem; }
-.autografo-linhas dt { flex: none; min-width: 12.5rem; color: var(--tinta-3); }
-.autografo-linhas dd { margin: 0; font-variant-numeric: tabular-nums; }
-.autografo-nota { color: var(--tinta-3); font-size: 0.76rem; }
-.autografo-vazio {
-  margin: 0 0 0.9rem; padding: 0.7rem 0.85rem; font-size: 0.83rem;
-  background: var(--cartao); border: 1px dashed var(--borda);
-  border-radius: 10px; color: var(--tinta-2);
-}
-
-.heroi-valor-menor { font-size: clamp(1.5rem, 4vw, 2.2rem); }
-.tira-valor-menor { font-size: clamp(1rem, 2.6vw, 1.35rem); }
 .ano-card-copia { border-style: dashed; }
 .ano-card-flag {
   margin-left: 0.4rem; font-size: 0.62rem; font-weight: 700;
@@ -465,6 +427,60 @@ body {
   color: var(--tinta-fraca); margin-left: 0.25em;
 }
 .tira-nota { margin: 0.3rem 0 0; font-size: 0.72rem; color: var(--tinta-2); }
+
+/* ----------------------------------------- ajustes da aba PLOA ----------- */
+/* item 4.4: título dos 4 cards superiores maior e tudo centralizado. Só na
+   aba PLOA (classe .destaque-ploa), sem afetar o Dashboard das emendas. */
+.destaque-ploa .heroi { text-align: center; }
+.destaque-ploa .heroi::before { display: none; }
+.destaque-ploa .heroi-rotulo,
+.destaque-ploa .tira-rotulo { font-size: 0.9rem; letter-spacing: 0.06em; justify-content: center; }
+.destaque-ploa .tira { text-align: center; align-items: center; }
+.destaque-ploa .tira-valor { align-self: center; }
+.destaque-ploa .heroi-nota { font-size: 0.82rem; }
+
+/* Cascata (RP) --------------------------------------------------------------*/
+.cascata { margin: 0.4rem 0 0; }
+.cascata-viewport { width: 100%; }
+.cascata-svg { width: 100%; height: auto; display: block; }
+.cascata-base { stroke: var(--borda); stroke-width: 1; }
+.cascata-conector { stroke: var(--tinta-fraca); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.6; }
+.cascata-barra { transition: opacity 0.15s; }
+.cascata-barra-total { filter: saturate(0.4); }
+.cascata-valor { fill: var(--tinta); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cascata-rotulo { fill: var(--tinta-2); font-size: 12px; font-weight: 600; }
+.cascata-dica { margin: 0.5rem 0 0; font-size: 0.74rem; color: var(--tinta-3); text-align: center; }
+
+/* Código destacado no rótulo (item 4.4 da Ação) -----------------------------*/
+.pbar-codigo {
+  flex: none; font-weight: 800; font-variant-numeric: tabular-nums;
+  font-size: 0.82rem; letter-spacing: 0.01em;
+  padding: 0.05rem 0.35rem; border-radius: 4px;
+  background: color-mix(in oklab, var(--serie-laranja) 15%, transparent);
+}
+
+/* Botões de expansão Mostrar +/− (itens 4.5.3 e 4.5.4) ----------------------*/
+.pbar-expansao { display: flex; gap: 0.5rem; justify-content: center; margin: 0.85rem 0 0; flex-wrap: wrap; }
+.pbar-btn {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer;
+  background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--borda);
+  transition: background 0.15s, border-color 0.15s;
+}
+.pbar-btn:hover { background: var(--cartao); border-color: var(--acento); }
+.pbar-btn-nota { color: var(--tinta-3); font-weight: 400; }
+
+/* Rolagem horizontal dos gráficos no celular (item 4.5.8) -------------------*/
+/* No mobile, gráficos densos (cascata, colunas por Força/fase) rolam na
+   horizontal dentro do card em vez de espremer barras e rótulos até se
+   sobreporem. O conteúdo mantém uma largura mínima confortável e o dedo
+   arrasta; no desktop a faixa é larga o bastante e nada rola. */
+.rolagem-x { width: 100%; }
+@media (max-width: 640px) {
+  .rolagem-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .rolagem-x > * { min-width: 560px; }
+  .rolagem-x .cascata-svg { min-width: 520px; }
+}
 
 /* ------------------------------------------ grade de painéis ------------- */
 .paineis { display: grid; gap: 0.85rem; grid-template-columns: 1fr; margin-top: 0.85rem; }
@@ -1018,7 +1034,7 @@ body {
 
   /* fora do papel: navegação, controles e os próprios botões de exportação */
   .cabecalho, .filtros, .rodape, .abas, .secoes, .tema, .btn-pptx, .btn-png,
-  .situacao-barra, [data-sem-exportar] { display: none !important; }
+  [data-sem-exportar] { display: none !important; }
 
   .app { display: block; }
   .conteudo { padding: 0; max-width: none; }
@@ -1070,7 +1086,6 @@ body {
   .ciclo-tabela { font-size: 7.5pt; overflow-x: visible; }
   .ciclo-linha { padding: 0.2rem 0.25rem; }
   .painel-rodape, .ploa-nota, .ploa-aviso { font-size: 7.5pt; }
-  .autografo-linhas > div, .autografo-dest-acao { font-size: 8pt; }
 
   a[href]::after { content: none !important; }
 }

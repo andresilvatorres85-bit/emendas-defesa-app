@@ -16,7 +16,8 @@
 // continuaria vendo o nome e o ícone antigos na tela inicial, porque o
 // manifest viria do cache velho mesmo com o servidor já publicando o novo.
 // v2: nome "Análise PLOA", ícones novos e seção PLOA.
-const VERSAO = 'analise-ploa-v2'
+// v3: nome exibido "Análise LOA" (era "Análise PLOA").
+const VERSAO = 'analise-loa-v3'
 const SHELL = ['./', './index.html', './manifest.webmanifest']
 
 self.addEventListener('install', (e) => {

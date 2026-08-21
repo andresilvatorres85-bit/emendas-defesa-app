@@ -31,10 +31,10 @@ export const IDX_AUTOGRAFO = FASES.length - 1
 // Força precisa ser a mesma em todos eles. Os rótulos coincidem com os valores
 // do filtro "Órgão", então filtrar por Exército numa aba vale na outra.
 export const AGREGADOS = [
-  { id: 'MINISTÉRIO DA DEFESA', rotulo: 'MD — Adm. Direta', cor: 'var(--serie-violeta)' },
-  { id: 'EXÉRCITO', rotulo: 'Exército', cor: 'var(--serie-verde)' },
-  { id: 'MARINHA', rotulo: 'Marinha', cor: 'var(--serie-azul)' },
-  { id: 'AERONÁUTICA', rotulo: 'Aeronáutica', cor: 'var(--serie-aqua)' },
+  { id: 'MINISTÉRIO DA DEFESA', rotulo: 'MD — Adm. Direta', cor: 'var(--forca-md)' },
+  { id: 'EXÉRCITO', rotulo: 'Exército', cor: 'var(--forca-exercito)' },
+  { id: 'MARINHA', rotulo: 'Marinha', cor: 'var(--forca-marinha)' },
+  { id: 'AERONÁUTICA', rotulo: 'Aeronáutica', cor: 'var(--forca-aeronautica)' },
 ]
 
 // Filtros da barra superior que fazem sentido nesta base. Os demais
@@ -206,6 +206,21 @@ export function porAcao(registros, n = 15, fase = IDX_AUTOGRAFO) {
   }
 }
 
+// Lista completa de ações, ordenada por valor decrescente e SEM agregação em
+// "demais ações". A paginação (mostrar 15, expandir de 15 em 15) fica com o
+// componente de gráfico, que precisa dos itens individuais para revelá-los.
+export function acoesOrdenadas(registros, fase = IDX_AUTOGRAFO) {
+  const mapa = new Map()
+  for (const r of registros) {
+    const chave = r.acaoCod || '—'
+    if (!mapa.has(chave)) mapa.set(chave, { acaoCod: chave, acao: r.acao || '', valor: 0, pl: 0 })
+    const alvo = mapa.get(chave)
+    alvo.valor += fasesDe(r)[fase] || 0
+    alvo.pl += valorPL(r)
+  }
+  return [...mapa.values()].filter((a) => a.valor || a.pl).sort((a, b) => b.valor - a.valor)
+}
+
 // 7) Por GND. Poucas categorias, escala conhecida — ordem numérica do código,
 //    como no RP.
 export const GND_NOMES = {
@@ -363,111 +378,6 @@ export function ciclosPorAno(registros) {
     anos,
     series: series.map((s) => ({ ...s, total: s.valores.reduce((a, b) => a + b, 0) })),
   }
-}
-
-// ------------------------------------- emendas × autógrafo (subaba própria) --
-// Liga a emenda APRESENTADA (base das emendas) à dotação que a acolheu no
-// PLOA (base da elaboração). A chave é (ano, UO, ação, GND, RP):
-//
-//   - o código funcional inteiro NÃO serve como chave. A emenda aponta um
-//     localizador de estado ("05.122.0032.2000.0029" = na Bahia) e o PLOA
-//     consolida no localizador nacional — casar pelo funcional completo
-//     encontra só um terço das emendas de 2022-2024, contra a quase totalidade
-//     pela ação;
-//   - a chave é grossa DE PROPÓSITO, e é isso que a torna honesta: várias
-//     emendas caem na mesma dotação (33 dos 49 encontros de 2026 têm mais de
-//     uma emenda disputando o mesmo balde). Não existe, no dado, um "valor
-//     aprovado" por emenda.
-//
-// Por isso esta função devolve o BALDE, não um valor por emenda: o que a
-// dotação recebeu, quantas emendas concorrem a ela e — separado, sempre
-// rotulado como estimativa — o rateio proporcional ao valor solicitado.
-const acaoDoFuncional = (funcional) => {
-  const p = String(funcional || '').split('.')
-  return p.length > 3 ? p[3] : ''
-}
-
-const chaveBalde = (ano, uoCod, acaoCod, gnd, rp) =>
-  [ano, uoCod, acaoCod, gnd, rp].join('|')
-
-export function baldesAutografo(registrosPLOA) {
-  const baldes = new Map()
-  for (const r of registrosPLOA) {
-    // Só as dotações de emenda parlamentar: RP6 (individual impositiva) e RP7
-    // (bancada impositiva). O resto do orçamento não é destino de emenda.
-    if (r.rp !== '6' && r.rp !== '7') continue
-    const k = chaveBalde(r.ano, r.uoCod, r.acaoCod, r.gnd, r.rp)
-    if (!baldes.has(k)) {
-      baldes.set(k, {
-        chave: k, ano: r.ano, uoCod: r.uoCod, uo: r.uo, acaoCod: r.acaoCod,
-        acao: r.acao, gnd: r.gnd, rp: r.rp, pl: 0, autografo: 0, fases: FASES.map(() => 0),
-      })
-    }
-    const b = baldes.get(k)
-    const f = fasesDe(r)
-    b.pl += f[IDX_PL] || 0
-    b.autografo += f[IDX_AUTOGRAFO] || 0
-    for (let i = 0; i < b.fases.length; i++) b.fases[i] += f[i] || 0
-  }
-  return baldes
-}
-
-// Anexa a cada grupo de emenda (saída de `agruparPorEmenda`) o seu destino no
-// autógrafo. `solicitadoPorBalde` conta o total pedido por TODAS as emendas do
-// balde — inclusive as que estão fora do recorte de filtros —, senão o rateio
-// mudaria de valor conforme o usuário filtrasse, o que não faria sentido.
-export function casarComAutografo(grupos, registrosEmendas, registrosPLOA) {
-  const baldes = baldesAutografo(registrosPLOA)
-  const solicitado = new Map()
-  const emendasNoBalde = new Map()
-  for (const r of registrosEmendas) {
-    if (r.rp !== '6' && r.rp !== '7') continue
-    const k = chaveBalde(r.ano, r.uoCod, acaoDoFuncional(r.funcional), r.gnd, r.rp)
-    solicitado.set(k, (solicitado.get(k) || 0) + r.valor)
-    if (!emendasNoBalde.has(k)) emendasNoBalde.set(k, new Set())
-    emendasNoBalde.get(k).add(r.emenda)
-  }
-
-  return grupos.map((g) => {
-    const destinos = new Map()
-    let semDestino = 0
-    for (const item of g.itens) {
-      if (item.rp !== '6' && item.rp !== '7') {
-        semDestino += item.valor
-        continue
-      }
-      const k = chaveBalde(item.ano, item.uoCod, acaoDoFuncional(item.funcional), item.gnd, item.rp)
-      const balde = baldes.get(k)
-      if (!balde) {
-        semDestino += item.valor
-        continue
-      }
-      if (!destinos.has(k)) {
-        const totalPedido = solicitado.get(k) || 0
-        destinos.set(k, {
-          ...balde,
-          solicitadoNoBalde: totalPedido,
-          qtdEmendas: emendasNoBalde.get(k)?.size ?? 0,
-          solicitadoDesta: 0,
-        })
-      }
-      destinos.get(k).solicitadoDesta += item.valor
-    }
-    const lista = [...destinos.values()].map((d) => ({
-      ...d,
-      // Rateio: quanto do que a dotação recebeu corresponde, em proporção, ao
-      // que ESTA emenda pediu. É estimativa — a tela diz isso — porque o dado
-      // não distingue as emendas dentro do balde.
-      rateio: d.solicitadoNoBalde ? (d.solicitadoDesta / d.solicitadoNoBalde) * d.autografo : 0,
-    }))
-    return {
-      ...g,
-      destinos: lista,
-      valorSemDestino: semDestino,
-      autografoRateado: lista.reduce((s, d) => s + d.rateio, 0),
-      atendida: lista.length > 0,
-    }
-  })
 }
 
 // ------------------------------------------------------------ formatação ---

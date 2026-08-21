@@ -25,6 +25,14 @@ const rotulosFiltro = () =>
 await pg.goto(BASE, { waitUntil: 'networkidle' })
 await pg.waitForSelector('.secoes', { timeout: 20000 })
 
+// título do cabeçalho (item 2) e rodapé (item 3)
+ok((await pg.$eval('.cabecalho h1', (n) => n.textContent.trim())) === 'ANÁLISE LOA — MINISTÉRIO DA DEFESA',
+  'título do cabeçalho é "ANÁLISE LOA — MINISTÉRIO DA DEFESA"')
+const rodape = await pg.$eval('.rodape', (n) => n.textContent.trim())
+ok(rodape.startsWith('Desenvolvido por Maj Torres · Fonte: SIGA Brasil · Dados processados'),
+  'rodapé traz autoria e fonte antes de "Dados processados"')
+ok(!rodape.includes('C Mil A deduzido'), 'rodapé não contém mais a explicação do C Mil A')
+
 // --- nível 1: as duas seções -----------------------------------------------
 const secoes = await pg.$$eval('.secao', (n) => n.map((x) => x.textContent.trim()))
 ok(secoes.length === 2, `duas seções no nível 1 (achou ${secoes.length}: ${secoes})`)
@@ -50,22 +58,43 @@ await pg.click('.secao:has-text("PLOA")')
 await pg.waitForSelector('.painel-grafico', { timeout: 15000 })
 const subPloa = await pg.$$eval('.aba', (n) => n.map((x) => x.textContent.trim()))
 ok(
-  JSON.stringify(subPloa) === JSON.stringify(['Dashboard PLOA', 'Emendas Autógrafo', 'Histórico PLOA']),
-  `três subabas do PLOA (${subPloa})`
+  JSON.stringify(subPloa) === JSON.stringify(['Dashboard PLOA', 'Histórico PLOA']),
+  `duas subabas do PLOA, sem Emendas Autógrafo (${subPloa})`
 )
 
-const paineis = await pg.$$eval('.painel-grafico h2', (n) => n.map((x) => x.textContent.trim()))
+// Ordem dos painéis conforme o pedido (RP → GND → UO → Ação → Força → PL/Aut → Ciclo).
+const paineis = await pg.$$eval('.paineis .painel-grafico h2', (n) => n.map((x) => x.textContent.trim()))
 ok(paineis.length === 7, `Dashboard PLOA tem 7 painéis (achou ${paineis.length})`)
-console.log('        painéis:', paineis.join(' | '))
-for (const e of ['Total por Força', 'Unidade Orçamentária', 'Resultado Primário',
-  'ciclo de aprovação', 'PL ao Autógrafo', 'Ação orçamentária', 'Natureza da Despesa']) {
-  ok(paineis.some((p) => p.includes(e)), `painel presente: ${e}`)
-}
+console.log('        ordem:', paineis.join(' | '))
+const ordemEsperada = ['Resultado Primário', 'Natureza da Despesa', 'Unidade Orçamentária',
+  'Ação orçamentária', 'Total por Força', 'PL ao Autógrafo', 'ciclo de aprovação']
+ordemEsperada.forEach((e, i) => {
+  ok((paineis[i] || '').includes(e), `painel ${i + 1} é "${e}" (achou "${paineis[i]}")`)
+})
+
+// RP em cascata (item 4.5.1)
+ok((await pg.$('.paineis .painel-grafico .cascata-svg')) !== null, 'painel de RP usa gráfico de cascata')
+
+// RP e GND lado a lado (p-6); os demais em largura cheia (p-12)
+const larguras = await pg.$$eval('.paineis .painel-grafico', (ns) =>
+  ns.map((n) => (n.className.includes('p-12') ? 12 : 6)))
+ok(larguras[0] === 6 && larguras[1] === 6, 'RP e GND ocupam meia largura (lado a lado)')
+ok(larguras.slice(2).every((l) => l === 12), 'UO, Ação, Força, PL→Aut e Ciclo ocupam largura cheia')
 
 const nPNG = await pg.$$eval('.painel-grafico .btn-png:not(.btn-slide)', (n) => n.length)
 const nPPTX = await pg.$$eval('.painel-grafico .btn-slide', (n) => n.length)
 ok(nPNG === 7 && nPPTX === 7, `7 botões PNG e 7 PPTX por gráfico (achou ${nPNG}/${nPPTX})`)
 ok((await pg.$('.btn-pptx')) !== null, 'botão "Exportar PPTX" do baralho no Dashboard PLOA')
+
+// --- cards superiores (itens 4.1 a 4.4) -------------------------------------
+ok((await pg.$eval('.heroi-rotulo', (n) => n.textContent.trim())) === 'Valor final aprovado',
+  'card maior intitulado "Valor final aprovado"')
+ok((await pg.$('.heroi-exato')) === null, 'card maior sem o valor exato duplicado')
+const notaSaldo = await pg.$$eval('.tira-nota', (n) => n.map((x) => x.textContent.trim()))
+ok(notaSaldo.some((t) => t.includes('PL → Autógrafo =')), 'saldo do rito usa "PL → Autógrafo ="')
+ok((await pg.$$eval('.destaque-ploa .tira-rotulo', (n) =>
+  n.map((x) => x.textContent.trim()))).includes('PL do Executivo'),
+  'tira "PL do Executivo" presente (conteúdo trocado com o card maior)')
 
 // --- barra de filtros sensível ao contexto ----------------------------------
 const rotulos = await rotulosFiltro()
@@ -76,32 +105,44 @@ ok(
 )
 ok(rotulos.some((r) => r.startsWith('UO')), 'barra do PLOA mostra o filtro de UO')
 
-const totalAntes = await pg.$eval('.heroi-exato', (n) => n.textContent.trim())
+const totalAntes = await pg.$eval('.heroi-valor', (n) => n.textContent.trim())
 await pg.goto(`${BASE}?aba=ploa-dashboard&orgao=MARINHA`, { waitUntil: 'networkidle' })
-await pg.waitForSelector('.heroi-exato', { timeout: 15000 })
-const totalMarinha = await pg.$eval('.heroi-exato', (n) => n.textContent.trim())
+await pg.waitForSelector('.heroi-valor', { timeout: 15000 })
+const totalMarinha = await pg.$eval('.heroi-valor', (n) => n.textContent.trim())
 ok(totalAntes !== totalMarinha, `filtro de Órgão altera o painel (${totalAntes} → ${totalMarinha})`)
+
+// --- expansão Mostrar +/− (itens 4.5.3 e 4.5.4) -----------------------------
+// Marinha tem 8 UO: o botão aparece e revela o restante em bloco.
+const uo = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Unidade Orçamentária' }) })
+const uoIni = await uo.locator('.pbar-item').count()
+ok(uoIni === 4, `UO começa mostrando 4 itens (achou ${uoIni})`)
+await uo.locator('.pbar-btn').first().click()
+await pg.waitForTimeout(150)
+ok((await uo.locator('.pbar-item').count()) > uoIni, 'botão Mostrar + revela mais UO')
+ok((await uo.locator('.pbar-btn', { hasText: '−' }).count()) > 0, 'aparece o botão Mostrar −')
+
+const acao = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Valor por Ação' }) })
+const acaoIni = await acao.locator('.pbar-item').count()
+ok(acaoIni === 15, `Ação começa mostrando 15 itens (achou ${acaoIni})`)
+await acao.locator('.pbar-btn').first().click()
+await pg.waitForTimeout(150)
+ok((await acao.locator('.pbar-item').count()) === 30, 'Ação expande de 15 em 15')
+const corCod = await acao.locator('.pbar-codigo').first().evaluate((n) => getComputedStyle(n).color)
+ok(corCod === 'rgb(235, 104, 52)', `código da ação destacado em laranja (${corCod})`)
 
 // filtro de ano fora da faixa do PLOA não pode derrubar a aba
 await pg.goto(`${BASE}?aba=ploa-dashboard&ano=2019`, { waitUntil: 'networkidle' })
 await pg.waitForTimeout(600)
 ok((await pg.$('.vazio')) !== null, 'ano fora da faixa do PLOA mostra aviso, não tela quebrada')
 
-// --- Emendas Autógrafo ------------------------------------------------------
-await pg.goto(`${BASE}?aba=ploa-emendas`, { waitUntil: 'networkidle' })
-await pg.waitForSelector('.cartao', { timeout: 15000 })
-ok((await pg.$$eval('.cartao', (n) => n.length)) > 0, 'Emendas Autógrafo lista cartões')
-ok(
-  (await pg.$$eval('.tag-atendida, .tag-nao-atendida', (n) => n.length)) > 0,
-  'cartões trazem o selo de situação no autógrafo'
-)
-await pg.click('.cartao .cartao-cab')
-await pg.waitForTimeout(500)
-ok((await pg.$('.autografo-bloco, .autografo-vazio')) !== null,
-  'cartão aberto mostra o destino no autógrafo')
-ok((await rotulosFiltro()).some((r) => r.startsWith('Partido')),
-  'Emendas Autógrafo mantém a barra de filtros completa (os cartões são emendas)')
-
+// --- rolagem horizontal dos gráficos no celular (item 4.5.8) ----------------
+await pg.setViewportSize({ width: 390, height: 800 })
+await pg.goto(`${BASE}?aba=ploa-dashboard`, { waitUntil: 'networkidle' })
+await pg.waitForSelector('.rolagem-x')
+const algumRola = await pg.$$eval('.rolagem-x', (ns) =>
+  ns.some((n) => n.scrollWidth > n.clientWidth + 2))
+ok(algumRola, 'no celular, ao menos um gráfico rola na horizontal')
+await pg.setViewportSize({ width: 1440, height: 1000 })
 // --- Histórico PLOA ---------------------------------------------------------
 await pg.goto(`${BASE}?aba=ploa-historico`, { waitUntil: 'networkidle' })
 await pg.waitForSelector('.painel-grafico', { timeout: 15000 })
@@ -136,7 +177,7 @@ await baixar('.painel-grafico:first-of-type .btn-slide', 'slide avulso do Histó
 // --- responsivo + console ---------------------------------------------------
 for (const largura of [1920, 1440, 390]) {
   await pg.setViewportSize({ width: largura, height: 900 })
-  for (const a of ['ploa-dashboard', 'ploa-emendas', 'ploa-historico']) {
+  for (const a of ['ploa-dashboard', 'ploa-historico']) {
     await pg.goto(`${BASE}?aba=${a}`, { waitUntil: 'networkidle' })
     await pg.waitForTimeout(500)
     const over = await pg.evaluate(() =>
