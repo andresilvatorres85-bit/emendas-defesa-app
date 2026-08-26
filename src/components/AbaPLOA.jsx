@@ -66,7 +66,7 @@ export default function AbaPLOA({
   const deltaTodasForcas = totalTodasForcas - plTodasForcas
   const totalPL = totais[IDX_PL]
   const totalAutografo = totais[IDX_AUTOGRAFO]
-  const heroi = fmtCompacto(totalAutografo)
+  const heroi = fmtCompacto(totalPL)
   const deltaRito = totalAutografo - totalPL
   const pctRito = variacao(totalPL, totalAutografo)
   const compacto = fmtCompacto(Math.abs(deltaRito))
@@ -112,31 +112,29 @@ export default function AbaPLOA({
       )}
 
       <div className="destaque destaque-ploa" role="region" aria-label="Indicadores do PLOA">
-        {/* Card maior: agora traz o VALOR FINAL APROVADO (autógrafo).
-            Título maior e conteúdo centralizado (item 4.4); sem o valor exato
-            repetido embaixo, que duplicava a informação (item 4.3). */}
+        {/* Card maior: PL do Executivo — é o valor de partida do rito e a
+            referência primária desta análise. O autógrafo passou para a tira. */}
         <section className="heroi">
-          <p className="heroi-rotulo">Valor final aprovado</p>
+          <p className="heroi-rotulo">PL do Executivo</p>
           <p className="heroi-valor">
             R$ {heroi.valor}
             {heroi.unidade && <span className="heroi-unidade">{heroi.unidade}</span>}
           </p>
           <p className="heroi-nota">
-            Autógrafo · exercício {anosEmTela.join(', ')} · {fmtInt(registros.length)} dotações
+            Projeto de lei · exercício {anosEmTela.join(', ')} · {fmtInt(registros.length)} dotações
           </p>
         </section>
 
         <div className="tiras">
-          {/* Antes "PL do Executivo" com o valor do PL; agora "Valor final
-              aprovado" foi para o card maior, e AQUI entrou o PL — os dois
-              cards trocaram de conteúdo (item 4.1). */}
+          {/* Antes o card maior trazia o autógrafo; agora ele é o PL, e o
+              autógrafo (valor final aprovado) vem aqui na tira. */}
           <section className="tira">
-            <p className="tira-rotulo">PL do Executivo</p>
+            <p className="tira-rotulo">Valor final aprovado</p>
             <p className="tira-valor">
-              R$ {fmtCompacto(totalPL).valor}
-              <span className="tira-unidade">{fmtCompacto(totalPL).unidade}</span>
+              R$ {fmtCompacto(totalAutografo).valor}
+              <span className="tira-unidade">{fmtCompacto(totalAutografo).unidade}</span>
             </p>
-            <p className="tira-nota">Ponto de partida do rito</p>
+            <p className="tira-nota">Autógrafo — fim do rito</p>
           </section>
           <section className="tira">
             <p className="tira-rotulo">Saldo do rito</p>

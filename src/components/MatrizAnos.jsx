@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { fmtPct } from '../dados.js'
 
 // Matriz linha = categoria, coluna = exercício. Usada onde as categorias são
@@ -36,14 +36,27 @@ export default function MatrizAnos({
   rotuloColuna = 'Categoria',
   totalRotulo = 'Total',
   vazio = 'Sem valores para os filtros aplicados.',
+  // Paginação opcional: mostra só as `limite` primeiras linhas e revela o resto
+  // em blocos de `passoExpansao`, com botão "Mostrar +/−". As linhas já chegam
+  // ordenadas por total, então as primeiras são as maiores.
+  limite = null,
+  passoExpansao = 15,
+  // Quando true, destaca o código no início do rótulo da linha (ex.: a ação
+  // orçamentária) para leitura rápida.
+  destaqueCodigo = false,
 }) {
+  const [mostrar, setMostrar] = useState(limite ?? linhas.length)
   const max = useMemo(() => Math.max(1, ...linhas.map((l) => l.total)), [linhas])
+
+  const visiveis = limite === null ? linhas : linhas.slice(0, mostrar)
+  const restam = linhas.length - visiveis.length
+  const proximo = Math.min(passoExpansao, restam)
 
   // Variação de cada célula sobre a célula anterior da mesma linha. Um ano que
   // parte do zero não tem variação percentual definida — entra como "novo".
   const variacoes = useMemo(
     () =>
-      linhas.map((l) =>
+      visiveis.map((l) =>
         l.valores.map((v, i) => {
           if (i === 0) return null
           const anterior = l.valores[i - 1] || 0
@@ -51,7 +64,7 @@ export default function MatrizAnos({
           return ((v - anterior) / anterior) * 100
         })
       ),
-    [linhas]
+    [visiveis]
   )
 
   if (!linhas.length || !anos.length) {
@@ -75,10 +88,22 @@ export default function MatrizAnos({
             </tr>
           </thead>
           <tbody>
-            {linhas.map((l, iLinha) => (
+            {visiveis.map((l, iLinha) => {
+              // Com destaqueCodigo, separa "codigo — resto" para realçar o
+              // código; se o rótulo não tiver o separador, cai no rótulo inteiro.
+              let codigo = null
+              let nome = l.rotulo
+              if (destaqueCodigo) {
+                const m = /^(\S+)\s+—\s+(.*)$/.exec(l.rotulo)
+                if (m) { codigo = m[1]; nome = m[2] }
+              }
+              return (
               <tr key={l.chave}>
                 <th scope="row" className="matriz-cat">
-                  <span className="matriz-nome">{l.rotulo}</span>
+                  <span className="matriz-nome">
+                    {codigo && <span className="matriz-codigo">{codigo}</span>}
+                    {nome}
+                  </span>
                   {l.sub && <span className="matriz-sub">{l.sub}</span>}
                 </th>
                 {anos.map((a, i) => {
@@ -117,10 +142,25 @@ export default function MatrizAnos({
                   </span>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
+      {limite !== null && (restam > 0 || mostrar > limite) && (
+        <div className="pbar-expansao no-print">
+          {restam > 0 && (
+            <button type="button" className="pbar-btn" onClick={() => setMostrar((m) => m + proximo)}>
+              Mostrar + <span className="pbar-btn-nota">({proximo} de {restam} restantes)</span>
+            </button>
+          )}
+          {mostrar > limite && (
+            <button type="button" className="pbar-btn" onClick={() => setMostrar(limite)}>
+              Mostrar −
+            </button>
+          )}
+        </div>
+      )}
       <p className="matriz-legenda">
         <span className="matriz-chave sobe" aria-hidden />
         Aumento

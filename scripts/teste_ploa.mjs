@@ -87,14 +87,14 @@ ok(nPNG === 7 && nPPTX === 7, `7 botões PNG e 7 PPTX por gráfico (achou ${nPNG
 ok((await pg.$('.btn-pptx')) !== null, 'botão "Exportar PPTX" do baralho no Dashboard PLOA')
 
 // --- cards superiores (itens 4.1 a 4.4) -------------------------------------
-ok((await pg.$eval('.heroi-rotulo', (n) => n.textContent.trim())) === 'Valor final aprovado',
-  'card maior intitulado "Valor final aprovado"')
+ok((await pg.$eval('.heroi-rotulo', (n) => n.textContent.trim())) === 'PL do Executivo',
+  'card maior intitulado "PL do Executivo"')
 ok((await pg.$('.heroi-exato')) === null, 'card maior sem o valor exato duplicado')
 const notaSaldo = await pg.$$eval('.tira-nota', (n) => n.map((x) => x.textContent.trim()))
 ok(notaSaldo.some((t) => t.includes('PL → Autógrafo =')), 'saldo do rito usa "PL → Autógrafo ="')
 ok((await pg.$$eval('.destaque-ploa .tira-rotulo', (n) =>
-  n.map((x) => x.textContent.trim()))).includes('PL do Executivo'),
-  'tira "PL do Executivo" presente (conteúdo trocado com o card maior)')
+  n.map((x) => x.textContent.trim()))).includes('Valor final aprovado'),
+  'tira "Valor final aprovado" presente (conteúdo trocado com o card maior)')
 
 // --- barra de filtros sensível ao contexto ----------------------------------
 const rotulos = await rotulosFiltro()
@@ -152,6 +152,35 @@ ok((await pg.$('.ploa-aviso')) !== null, 'aviso da aba 2025 duplicada aparece')
 const paineisH = await pg.$$eval('.painel-grafico h2', (n) => n.map((x) => x.textContent.trim()))
 ok(paineisH.length === 8, `Histórico PLOA tem 8 painéis (achou ${paineisH.length})`)
 ok((await pg.$('.btn-pptx')) !== null, 'botão "Exportar PPTX" do baralho no Histórico PLOA')
+
+// card por ano destaca o PL; o autógrafo desce para a linha detalhada (item 2.1)
+const dtsAno = await pg.$$eval('.ano-card:first-child .ano-card-linhas dt', (n) => n.map((x) => x.textContent.trim()))
+ok(dtsAno[0] === 'Autógrafo', `linha detalhada do card começa por "Autógrafo" (achou "${dtsAno[0]}")`)
+
+// gráfico principal renomeado para PL (item 2.2)
+ok(paineisH[0] === 'Projeto de Lei por exercício',
+  `1º painel é "Projeto de Lei por exercício" (achou "${paineisH[0]}")`)
+ok(paineisH.includes('Ações orçamentárias por exercício'),
+  'painel de ações renomeado para "Ações orçamentárias por exercício"')
+
+// matriz de UO: com todas as UO (sem filtro de Órgão) mostra 5 e expande (item 2.3)
+await pg.goto(`${BASE}?aba=ploa-historico&orgao=`, { waitUntil: 'networkidle' })
+await pg.waitForSelector('.painel-grafico', { timeout: 15000 })
+const uoH = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Unidades orçamentárias' }) })
+ok((await uoH.locator('tbody tr').count()) === 5, 'matriz de UO começa com 5 linhas')
+await uoH.locator('.pbar-btn').first().click()
+await pg.waitForTimeout(150)
+ok((await uoH.locator('tbody tr').count()) > 5, 'botão Mostrar + revela mais UO na matriz')
+
+// matriz de ações: 15 linhas, expande de 15 em 15, código destacado (item 2.4)
+const acH = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Ações orçamentárias' }) })
+ok((await acH.locator('tbody tr').count()) === 15, 'matriz de ações começa com 15 linhas')
+const corCodMatH = await acH.locator('.matriz-codigo').first().evaluate((n) => getComputedStyle(n).color)
+ok(corCodMatH === 'rgb(235, 104, 52)', `código da ação destacado em laranja na matriz (${corCodMatH})`)
+await acH.locator('.pbar-btn').first().click()
+await pg.waitForTimeout(150)
+ok((await acH.locator('tbody tr').count()) === 30, 'matriz de ações expande de 15 em 15')
+await pg.goto(`${BASE}?aba=ploa-historico`, { waitUntil: 'networkidle' })
 
 // --- exportações de verdade -------------------------------------------------
 const baixar = async (seletor, nome) => {

@@ -40,7 +40,7 @@ export default function AbaHistoricoPLOA({
   const uos = useMemo(() => uoPorAno(registros), [registros])
   const rps = useMemo(() => rpPorAno(registros), [registros])
   const gnds = useMemo(() => gndPorAno(registros), [registros])
-  const acoes = useMemo(() => acaoPorAno(registros, 15), [registros])
+  const acoes = useMemo(() => acaoPorAno(registros, Infinity), [registros])
   const ciclo = useMemo(() => ciclosPorAno(registros), [registros])
 
   const anos = anosResumo.map((a) => a.ano)
@@ -53,12 +53,14 @@ export default function AbaHistoricoPLOA({
     )
   }
 
-  const totalPeriodo = anosResumo.reduce((s, a) => s + a.autografo, 0)
+  const totalPeriodo = anosResumo.reduce((s, a) => s + a.pl, 0)
 
-  // Série do total por exercício (autógrafo) e a do rito (PL × autógrafo).
-  const serieTotal = [{
-    chave: 'autografo', rotulo: 'Autógrafo', cor: 'var(--serie-azul)',
-    valores: anosResumo.map((a) => a.autografo),
+  // Série do total por exercício. A prioridade desta aba é o PL: o gráfico
+  // principal soma o PL de cada exercício. O par PL × autógrafo permanece no
+  // painel seguinte, para quem quiser ver o efeito do rito.
+  const seriePL = [{
+    chave: 'pl', rotulo: 'PL', cor: 'var(--serie-azul)',
+    valores: anosResumo.map((a) => a.pl),
   }]
   const serieRito = [
     { chave: 'pl', rotulo: 'PL', cor: 'var(--serie-azul)', valores: anosResumo.map((a) => a.pl) },
@@ -95,7 +97,9 @@ export default function AbaHistoricoPLOA({
 
       <div className="historico-anos" role="region" aria-label="Resumo por exercício">
         {anosResumo.map((a) => {
-          const c = fmtCompacto(a.autografo)
+          // Destaque no PL (prioridade desta aba: o projeto de lei do Executivo);
+          // o autógrafo desce para a linha detalhada.
+          const c = fmtCompacto(a.pl)
           const d = fmtCompacto(Math.abs(a.delta))
           const copia = duplicados.find((x) => x.ano === a.ano)
           return (
@@ -108,9 +112,9 @@ export default function AbaHistoricoPLOA({
                 R$ {c.valor}
                 {c.unidade && <span className="ano-card-unidade">{c.unidade}</span>}
               </p>
-              <p className="ano-card-var"><Variacao pct={a.variacao} /></p>
+              <p className="ano-card-var"><Variacao pct={a.variacaoPL} /></p>
               <dl className="ano-card-linhas">
-                <div><dt>PL</dt><dd>{fmtBi(a.pl)}</dd></div>
+                <div><dt>Autógrafo</dt><dd>{fmtBi(a.autografo)}</dd></div>
                 <div>
                   <dt>Saldo do rito</dt>
                   <dd className={a.delta >= 0 ? 'var-sobe' : 'var-desce'}>
@@ -125,24 +129,24 @@ export default function AbaHistoricoPLOA({
       </div>
 
       <div className="paineis">
-        {/* total por exercício */}
+        {/* projeto de lei por exercício */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
-              <h2>Autógrafo por exercício</h2>
-              <p className="painel-sub">Valor final aprovado em cada PLOA</p>
+              <h2>Projeto de Lei por exercício</h2>
+              <p className="painel-sub">Somatório do PL enviado pelo Executivo em cada exercício</p>
             </div>
             <span className="painel-total">{fmtBi(totalPeriodo)}</span>
-            <BotaoPPTX titulo="Autógrafo por exercício" onExportar={() => onExportarSlide('hploa-total')} />
-            <BotaoPNG titulo="Autógrafo por exercício" contexto={contexto} />
+            <BotaoPPTX titulo="Projeto de Lei por exercício" onExportar={() => onExportarSlide('hploa-total')} />
+            <BotaoPNG titulo="Projeto de Lei por exercício" contexto={contexto} />
           </div>
           <GraficoColunasAno
             anos={anos}
-            series={serieTotal}
+            series={seriePL}
             formatar={fmtBi}
             formatarTotal={(v) => fmtBi(v)}
             tendencia
-            rotuloEixo="Valor do autógrafo em cada exercício"
+            rotuloEixo="Valor do PL em cada exercício"
           />
         </section>
 
@@ -287,7 +291,9 @@ export default function AbaHistoricoPLOA({
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Unidades orçamentárias por exercício</h2>
-              <p className="painel-sub">Valor no autógrafo · valores em R$ bilhões</p>
+              <p className="painel-sub">
+                {uos.series.length} UO · valor no autógrafo · valores em R$ bilhões
+              </p>
             </div>
             <span className="painel-total">{fmtBi(uos.series.reduce((s, l) => s + l.total, 0))}</span>
             <BotaoPPTX titulo="Unidades orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-uo')} />
@@ -298,6 +304,8 @@ export default function AbaHistoricoPLOA({
             linhas={uos.series}
             formatar={fmtBiSeco}
             rotuloColuna="Unidade orçamentária"
+            limite={5}
+            passoExpansao={5}
           />
         </section>
 
@@ -305,20 +313,23 @@ export default function AbaHistoricoPLOA({
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
-              <h2>Maiores ações por exercício</h2>
+              <h2>Ações orçamentárias por exercício</h2>
               <p className="painel-sub">
-                15 maiores de {fmtInt(acoes.total)} ações · valor no autógrafo · valores em R$ bilhões
+                {fmtInt(acoes.total)} ações · valor no autógrafo · valores em R$ bilhões
               </p>
             </div>
             <span className="painel-total">{fmtBi(acoes.series.reduce((s, l) => s + l.total, 0))}</span>
-            <BotaoPPTX titulo="Maiores ações por exercício" onExportar={() => onExportarSlide('hploa-acao')} />
-            <BotaoPNG titulo="Maiores ações por exercício" contexto={contexto} />
+            <BotaoPPTX titulo="Ações orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-acao')} />
+            <BotaoPNG titulo="Ações orçamentárias por exercício" contexto={contexto} />
           </div>
           <MatrizAnos
             anos={acoes.anos}
             linhas={acoes.series}
             formatar={fmtBiSeco}
             rotuloColuna="Ação orçamentária"
+            limite={15}
+            passoExpansao={15}
+            destaqueCodigo
           />
         </section>
       </div>

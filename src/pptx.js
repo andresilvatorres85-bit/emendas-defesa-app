@@ -1202,16 +1202,16 @@ function paineisHistoricoPLOA(d) {
   return [
     {
       id: 'hploa-total',
-      titulo: 'Autógrafo por exercício',
-      sub: 'Valor final aprovado em cada PLOA · linha tracejada = tendência do período',
+      titulo: 'Projeto de Lei por exercício',
+      sub: 'Somatório do PL enviado pelo Executivo em cada exercício · linha tracejada = tendência',
       total: fmtBiTxt(d.totalPeriodo),
       grafico: graficoBarras({
         cats: anos,
-        series: [{ nome: 'Autógrafo (R$ bilhões)', cor: AZUL, valores: d.resumoAnos.map((a) => bi(a.autografo)) }],
+        series: [{ nome: 'PL (R$ bilhões)', cor: AZUL, valores: d.resumoAnos.map((a) => bi(a.pl)) }],
         vertical: true, tendencia: true, formato: FMT_BI,
       }),
       planilha: planilha(anos, [
-        { nome: 'Autógrafo (R$ bilhões)', valores: d.resumoAnos.map((a) => bi(a.autografo)) },
+        { nome: 'PL (R$ bilhões)', valores: d.resumoAnos.map((a) => bi(a.pl)) },
       ]),
     },
     {
@@ -1311,7 +1311,7 @@ function paineisHistoricoPLOA(d) {
     },
     {
       id: 'hploa-acao',
-      titulo: 'Maiores ações por exercício',
+      titulo: 'Ações orçamentárias por exercício',
       sub: `Valor no autógrafo · ${emBilhoes}`,
       total: fmtBiTxt(d.acaoPorAno.series.reduce((s, l) => s + l.total, 0)),
       tabela: matriz(d.acaoPorAno.series, 'Ação orçamentária'),

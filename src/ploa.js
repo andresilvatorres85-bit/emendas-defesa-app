@@ -287,7 +287,11 @@ export function resumoPorAno(registros) {
   })
   return linhas.map((l, i) => ({
     ...l,
+    // Variação do autógrafo e do PL, cada uma sobre o exercício anterior. A aba
+    // Histórico destaca o PL, então precisa da variação do PL; a do autógrafo
+    // segue disponível para quem a use.
     variacao: i === 0 ? null : variacao(linhas[i - 1].autografo, l.autografo),
+    variacaoPL: i === 0 ? null : variacao(linhas[i - 1].pl, l.pl),
   }))
 }
 

@@ -452,12 +452,14 @@ body {
 .cascata-dica { margin: 0.5rem 0 0; font-size: 0.74rem; color: var(--tinta-3); text-align: center; }
 
 /* Código destacado no rótulo (item 4.4 da Ação) -----------------------------*/
-.pbar-codigo {
+.pbar-codigo,
+.matriz-codigo {
   flex: none; font-weight: 800; font-variant-numeric: tabular-nums;
   font-size: 0.82rem; letter-spacing: 0.01em;
   padding: 0.05rem 0.35rem; border-radius: 4px;
   background: color-mix(in oklab, var(--serie-laranja) 15%, transparent);
 }
+.matriz-codigo { margin-right: 0.4rem; color: var(--serie-laranja); }
 
 /* Botões de expansão Mostrar +/− (itens 4.5.3 e 4.5.4) ----------------------*/
 .pbar-expansao { display: flex; gap: 0.5rem; justify-content: center; margin: 0.85rem 0 0; flex-wrap: wrap; }

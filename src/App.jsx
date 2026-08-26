@@ -342,15 +342,15 @@ export default function App() {
       fonte: dados.fonte,
       linhaResumo:
         `${fmtInt(ploaSemAno.length)} dotações em ${porAno.length} exercícios · ` +
-        `autógrafo somado ${fmtBi(porAno.reduce((s2, a) => s2 + a.autografo, 0))}`,
+        `PL somado ${fmtBi(porAno.reduce((s2, a) => s2 + a.pl, 0))}`,
       anos: porAno.map((a) => a.ano),
       resumoAnos: porAno,
-      totalPeriodo: porAno.reduce((s, a) => s + a.autografo, 0),
+      totalPeriodo: porAno.reduce((s, a) => s + a.pl, 0),
       forcasPorAno: ploaAgregadoPorAno(ploaSemAnoNemOrgao),
       uoPorAno: ploaUoPorAno(ploaSemAno),
       rpPorAno: ploaRpPorAno(ploaSemAno),
       gndPorAno: ploaGndPorAno(ploaSemAno),
-      acaoPorAno: ploaAcaoPorAno(ploaSemAno, 15),
+      acaoPorAno: ploaAcaoPorAno(ploaSemAno, Infinity),
       ciclosPorAno: ploaCiclosPorAno(ploaSemAno),
     }
   }
