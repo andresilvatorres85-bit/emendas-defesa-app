@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { fmtPct } from '../dados.js'
 import { fmtBi, fmtVar, variacao } from '../ploa.js'
 
 // Barras horizontais para as categorias do PLOA (agregado por Força, UO, ação,
@@ -26,6 +27,7 @@ export default function GraficoBarrasPLOA({
   corNumero = null, // cor do código destacado no rótulo (item Ação)
   limite = null,
   passoExpansao = 15,
+  mostrarPercentual = false, // exibe, ao lado do valor, a fatia da categoria no total
 }) {
   const [hover, setHover] = useState(null)
   const [mostrar, setMostrar] = useState(limite ?? dados.length)
@@ -34,6 +36,13 @@ export default function GraficoBarrasPLOA({
   const max = useMemo(
     () => Math.max(1, ...dados.map((d) => Math.max(d.valor || 0, comparar ? d.pl || 0 : 0))),
     [dados, comparar]
+  )
+  // Total do conjunto INTEIRO (não só os itens visíveis) para o percentual —
+  // senão a fatia de cada categoria mudaria ao expandir a lista. Usa a mesma
+  // ponta que a barra exibe (PL quando barra="pl", autógrafo caso contrário).
+  const totalPct = useMemo(
+    () => dados.reduce((s, d) => s + (comparar && barra === 'pl' ? d.pl || 0 : d.valor || 0), 0),
+    [dados, comparar, barra]
   )
 
   if (!dados.length) return <p className="grafico-vazio">{vazio}</p>
@@ -76,7 +85,12 @@ export default function GraficoBarrasPLOA({
                   <span className="pbar-nome">{d.rotulo}</span>
                   {d.sublinha && !d.codigo && <span className="pbar-sub">{d.sublinha}</span>}
                 </span>
-                <span className="pbar-valor">{formatar(vBarra)}</span>
+                <span className="pbar-valor">
+                  {formatar(vBarra)}
+                  {mostrarPercentual && totalPct > 0 && (
+                    <span className="pbar-pct"> ({fmtPct((vBarra / totalPct) * 100)})</span>
+                  )}
+                </span>
               </div>
 
               <div className="pbar-trilho">

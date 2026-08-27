@@ -105,6 +105,18 @@ ok(
 )
 ok(rotulos.some((r) => r.startsWith('UO')), 'barra do PLOA mostra o filtro de UO')
 
+// --- percentuais ao lado do valor (item 2) ----------------------------------
+// GND, UO, Ação e Total por Força trazem a fatia da categoria no total.
+for (const titulo of ['Grupo de Natureza da Despesa', 'Unidade Orçamentária',
+  'Ação orçamentária', 'Total por Força']) {
+  const painel = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: titulo }) })
+  const comPct = await painel.locator('.pbar-pct').count()
+  ok(comPct > 0, `painel "${titulo}" mostra percentual ao lado do valor (${comPct} itens)`)
+}
+const exemploPct = (await pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Grupo de Natureza' }) })
+  .locator('.pbar-pct').first().textContent()).trim()
+ok(/^\(\d+,\d+%\)$/.test(exemploPct), `percentual no formato "(NN,N%)" (achou "${exemploPct}")`)
+
 const totalAntes = await pg.$eval('.heroi-valor', (n) => n.textContent.trim())
 await pg.goto(`${BASE}?aba=ploa-dashboard&orgao=MARINHA`, { waitUntil: 'networkidle' })
 await pg.waitForSelector('.heroi-valor', { timeout: 15000 })
@@ -180,6 +192,18 @@ ok(corCodMatH === 'rgb(235, 104, 52)', `código da ação destacado em laranja n
 await acH.locator('.pbar-btn').first().click()
 await pg.waitForTimeout(150)
 ok((await acH.locator('tbody tr').count()) === 30, 'matriz de ações expande de 15 em 15')
+
+// --- item 3.1: barras do "Projeto de Lei por exercício" com cores distintas --
+const pl = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Projeto de Lei por exercício' }) })
+const coresPL = await pl.locator('.colunas-barra').evaluateAll((ns) =>
+  [...new Set(ns.map((n) => getComputedStyle(n).backgroundColor))])
+ok(coresPL.length >= 5, `cada ano do "Projeto de Lei" tem cor distinta (${coresPL.length} cores)`)
+
+// --- item 3.2: rótulo de % em cada barra do "Por Força, ao longo..." ---------
+const forcaAno = pg.locator('.painel-grafico').filter({ has: pg.locator('h2', { hasText: 'Por Força, ao longo' }) })
+const rotulos3 = await forcaAno.locator('.colunas-barra-rotulo').allTextContents()
+ok(rotulos3.length > 0 && rotulos3.every((t) => t.includes('%')),
+  `barras do "Por Força" trazem rótulo de % (${rotulos3.length} rótulos, ex.: ${rotulos3[0]})`)
 await pg.goto(`${BASE}?aba=ploa-historico`, { waitUntil: 'networkidle' })
 
 // --- exportações de verdade -------------------------------------------------

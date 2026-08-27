@@ -55,6 +55,17 @@ export default function AbaHistoricoPLOA({
 
   const totalPeriodo = anosResumo.reduce((s, a) => s + a.pl, 0)
 
+  // Uma cor por exercício, para o gráfico "Projeto de Lei por exercício" (item
+  // 3.1). Como a série é única (só o PL), a cor não codifica outra dimensão —
+  // serve só para distinguir as barras visualmente, então uma paleta rotativa
+  // resolve. Vem da paleta validada do app, na ordem de exibição.
+  const CORES_ANO = [
+    'var(--serie-azul)', 'var(--serie-verde)', 'var(--serie-laranja)',
+    'var(--serie-violeta)', 'var(--serie-aqua)', 'var(--serie-magenta)',
+    'var(--serie-amarelo)', 'var(--serie-vermelho)',
+  ]
+  const coresPorAno = anosResumo.map((_, i) => CORES_ANO[i % CORES_ANO.length])
+
   // Série do total por exercício. A prioridade desta aba é o PL: o gráfico
   // principal soma o PL de cada exercício. O par PL × autógrafo permanece no
   // painel seguinte, para quem quiser ver o efeito do rito.
@@ -143,6 +154,7 @@ export default function AbaHistoricoPLOA({
           <GraficoColunasAno
             anos={anos}
             series={seriePL}
+            corPorColuna={coresPorAno}
             formatar={fmtBi}
             formatarTotal={(v) => fmtBi(v)}
             tendencia
@@ -235,11 +247,13 @@ export default function AbaHistoricoPLOA({
           <GraficoColunasAno
             anos={forcas.anos}
             series={forcas.series}
+            rotularPercentual
             formatar={fmtBi}
             formatarTotal={(v) => fmtBi(v)}
             rotuloEixo="Valor por Força em cada exercício"
           />
           <p className="painel-rodape">
+            Rótulo em cada barra: participação da Força no total do exercício.
             Painel comparativo entre Forças — ignora também o filtro de Órgão.
           </p>
         </section>

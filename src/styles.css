@@ -226,6 +226,7 @@ body {
 }
 .pbar-sub { flex: none; font-size: 0.74rem; color: var(--tinta-3); }
 .pbar-valor { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.87rem; }
+.pbar-pct { font-weight: 500; color: var(--tinta-3); font-size: 0.82rem; }
 .pbar-trilho {
   position: relative; height: var(--barra-h, 14px);
   background: var(--trilho, color-mix(in oklab, var(--tinta) 8%, transparent));
@@ -687,6 +688,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .colunas-trilho { height: var(--colunas-h); display: flex; align-items: flex-end; }
+/* Quando cada barra leva um rótulo no topo (valor ou %), a barra que atinge o
+   máximo encostaria no rótulo do total. Uma folga proporcional no topo do
+   trilho (via padding) reserva a faixa do rótulo sem desalinhar as bases. */
+.colunas-trilho.rotulado { padding-top: 1.1em; box-sizing: border-box; }
 /* `width: 100%` é obrigatório: um SVG com viewBox tem proporção intrínseca, e
    com `width: auto` o par left/right NÃO estica o elemento — ele fica do
    tamanho natural e a reta sai cortada no primeiro ano. */

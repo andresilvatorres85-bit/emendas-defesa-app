@@ -696,7 +696,65 @@ function slideCards(d) {
 
 // Slide de um painel: título, subtítulo, total e o conteúdo — que pode ser um
 // gráfico (peça `chart` própria) ou uma tabela (desenhada no próprio slide).
+// Quantas categorias cabem, sem sobreposição, num slide — separado para tabela
+// e para gráfico porque a linha de tabela é mais alta que uma barra horizontal.
+// Painéis com mais categorias que isso geram vários slides (2/3, 3/3…), em vez
+// de amontoar tudo num quadro só.
+const MAX_LINHAS_TABELA = 16
+const MAX_BARRAS = 22
+
+// Divide uma lista em blocos de tamanho `n`.
+function emBlocos(lista, n) {
+  const blocos = []
+  for (let i = 0; i < lista.length; i += n) blocos.push(lista.slice(i, i + n))
+  return blocos
+}
+
+// Quebra um painel em N páginas quando ele tem categorias demais para um slide.
+// Devolve sempre um array de painéis (uma página = um painel), já com o sufixo
+// "(k/total)" no título. Painéis curtos voltam como um array de um elemento.
+// Só pagina o que tem categorias enumeráveis: uma tabela (`tabela.linhas`) ou um
+// gráfico de barras cuja fonte de categorias foi anexada em `paginavel`.
+function paginarPainel(o) {
+  // Tabela: fatiar as linhas, mantendo cabeçalho e larguras.
+  if (o.tabela && o.tabela.linhas.length > MAX_LINHAS_TABELA) {
+    const blocos = emBlocos(o.tabela.linhas, MAX_LINHAS_TABELA)
+    return blocos.map((linhas, i) => ({
+      ...o,
+      titulo: `${o.titulo} (${i + 1}/${blocos.length})`,
+      tabela: { ...o.tabela, linhas },
+    }))
+  }
+  // Barras: fatiar categorias e os valores de cada série em paralelo. O painel
+  // anexa `paginavel = { cats, series, construir }` — `construir(cats, series)`
+  // devolve um novo `{ grafico, planilha }` para o bloco.
+  if (o.paginavel && o.paginavel.cats.length > MAX_BARRAS) {
+    const { cats, series, construir } = o.paginavel
+    const blocosCats = emBlocos(cats, MAX_BARRAS)
+    let base = 0
+    return blocosCats.map((fatiaCats, i) => {
+      const ini = base
+      base += fatiaCats.length
+      const fatiaSeries = series.map((s) => ({ ...s, valores: s.valores.slice(ini, ini + fatiaCats.length) }))
+      const { grafico, planilha } = construir(fatiaCats, fatiaSeries)
+      return {
+        ...o,
+        titulo: `${o.titulo} (${i + 1}/${blocosCats.length})`,
+        grafico,
+        planilha,
+      }
+    })
+  }
+  return [o]
+}
+
+// Monta o(s) slide(s) de UM painel. Retorna sempre um array: um painel longo
+// vira vários slides paginados; um curto, um slide só.
 function slideGrafico(d, o) {
+  return paginarPainel(o).map((pg) => umSlideGrafico(d, pg))
+}
+
+function umSlideGrafico(d, o) {
   const corpo = [
     forma({
       id: 2, nome: 'Título', x: 1.6, y: 1.1, w: 20, h: 1.5,
@@ -790,6 +848,13 @@ function paineisDashboard(d) {
       total: fmtMilhoes(d.totalPartidos),
       grafico: graficoBarras({ cats: catsP, series: serieP }),
       planilha: planilha(catsP, serieP),
+      paginavel: {
+        cats: catsP, series: serieP,
+        construir: (cats, series) => ({
+          grafico: graficoBarras({ cats, series }),
+          planilha: planilha(cats, series),
+        }),
+      },
     },
   ]
 }
@@ -1093,6 +1158,14 @@ function paineisPLOA(d) {
         cats: catsUO, series: parPLAutografo(d.uos), legenda: true, formato: FMT_BI,
       }),
       planilha: planilha(catsUO, parPLAutografo(d.uos)),
+      // Muitas UO (17 sem filtro de Órgão) → pagina em vários slides.
+      paginavel: {
+        cats: catsUO, series: parPLAutografo(d.uos),
+        construir: (cats, series) => ({
+          grafico: graficoBarras({ cats, series, legenda: true, formato: FMT_BI }),
+          planilha: planilha(cats, series),
+        }),
+      },
     },
     {
       id: 'ploa-rp',
@@ -1157,12 +1230,20 @@ function paineisPLOA(d) {
     {
       id: 'ploa-acao',
       titulo: 'Valor por Ação orçamentária',
-      sub: 'Maiores ações do recorte · comparação entre o PL e o autógrafo',
+      sub: 'Todas as ações do recorte · comparação entre o PL e o autógrafo',
       total: fmtBiTxt(acoes.reduce((s, a) => s + a.valor, 0)),
       grafico: graficoBarras({
         cats: catsAcao, series: parPLAutografo(acoes), legenda: true, formato: FMT_BI,
       }),
       planilha: planilha(catsAcao, parPLAutografo(acoes)),
+      // ~65 ações → o slide único ficaria ilegível; pagina em blocos.
+      paginavel: {
+        cats: catsAcao, series: parPLAutografo(acoes),
+        construir: (cats, series) => ({
+          grafico: graficoBarras({ cats, series, legenda: true, formato: FMT_BI }),
+          planilha: planilha(cats, series),
+        }),
+      },
     },
     {
       id: 'ploa-gnd',
@@ -1402,19 +1483,19 @@ function slideAnosPLOA(d) {
 }
 
 function montarSlides(d) {
-  return [slideCapa(d), slideCards(d), ...paineisDashboard(d).map((o) => slideGrafico(d, o))]
+  return [slideCapa(d), slideCards(d), ...paineisDashboard(d).flatMap((o) => slideGrafico(d, o))]
 }
 
 function montarSlidesHistorico(d) {
-  return [slideCapa(d), slideAnos(d), ...paineisHistorico(d).map((o) => slideGrafico(d, o))]
+  return [slideCapa(d), slideAnos(d), ...paineisHistorico(d).flatMap((o) => slideGrafico(d, o))]
 }
 
 function montarSlidesPLOA(d) {
-  return [slideCapa(d), slideCardsPLOA(d), ...paineisPLOA(d).map((o) => slideGrafico(d, o))]
+  return [slideCapa(d), slideCardsPLOA(d), ...paineisPLOA(d).flatMap((o) => slideGrafico(d, o))]
 }
 
 function montarSlidesHistoricoPLOA(d) {
-  return [slideCapa(d), slideAnosPLOA(d), ...paineisHistoricoPLOA(d).map((o) => slideGrafico(d, o))]
+  return [slideCapa(d), slideAnosPLOA(d), ...paineisHistoricoPLOA(d).flatMap((o) => slideGrafico(d, o))]
 }
 
 // ------------------------------------------------------------- montagem ---
@@ -1561,5 +1642,7 @@ export function exportarSlidePPTX(d, id) {
   const paineis = entrada ? entrada[1](d) : paineisDashboard(d)
   const painel = paineis.find((p) => p.id === id)
   if (!painel) throw new Error(`painel desconhecido: ${id}`)
-  baixarPacote(d, [slideGrafico(d, painel)], painel.titulo)
+  // slideGrafico já pagina: um painel longo vira mais de um slide também no
+  // avulso, então o botão de um gráfico grande baixa um .pptx com N páginas.
+  baixarPacote(d, slideGrafico(d, painel), painel.titulo)
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { fmtPct } from '../dados.js'
 
 // Colunas verticais, uma por exercício. O ano é uma dimensão ordenada, então
 // ele vai no EIXO (posição), nunca na cor — a cor fica livre para carregar a
@@ -43,6 +44,10 @@ export default function GraficoColunasAno({
   formatar,
   formatarTotal,
   rotularBarras = false,
+  // Rótulo de percentual em cada barra do modo agrupado: a fatia daquela série
+  // (Força) no total do ANO. Independente de `rotularBarras` (que mostra o
+  // valor absoluto) — este mostra o percentual.
+  rotularPercentual = false,
   tendencia = false,
   // Uma cor por POSIÇÃO do eixo (não por série), aplicada sobre cada barra
   // agrupada daquela categoria. Usada quando o eixo é a Força e cada série
@@ -100,7 +105,7 @@ export default function GraficoColunasAno({
           return (
             <div className="colunas-ano" key={ano}>
               <span className="colunas-total">{total > 0 ? fmtTotal(total, i) : ''}</span>
-              <div className="colunas-trilho">
+              <div className={`colunas-trilho${(rotularBarras || rotularPercentual) ? ' rotulado' : ''}`}>
                 {empilha ? (
                   <div className="colunas-pilha" style={{ height: `${alturaCol}%` }}>
                     {series.map((s) => {
@@ -151,6 +156,11 @@ export default function GraficoColunasAno({
                         >
                           {rotularBarras && v > 0 && (
                             <span className="colunas-barra-rotulo">{fmt(v)}</span>
+                          )}
+                          {rotularPercentual && v > 0 && totais[i] > 0 && (
+                            <span className="colunas-barra-rotulo">
+                              {fmtPct((v / totais[i]) * 100)}
+                            </span>
                           )}
                         </span>
                       )

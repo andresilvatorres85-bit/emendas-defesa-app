@@ -193,6 +193,7 @@ export default function AbaPLOA({
               valor: g.valor, pl: g.pl, cor: g.cor,
             }))}
             comparar
+            mostrarPercentual
             rotuloGrafico="Valor por grupo de natureza da despesa, do PL ao autógrafo"
           />
         </section>
@@ -217,6 +218,7 @@ export default function AbaPLOA({
             barra="pl"
             limite={4}
             passoExpansao={4}
+            mostrarPercentual
             rotuloGrafico="Valor por unidade orçamentária, do PL ao autógrafo"
           />
         </section>
@@ -245,6 +247,7 @@ export default function AbaPLOA({
             corNumero="var(--serie-laranja)"
             limite={15}
             passoExpansao={15}
+            mostrarPercentual
             rotuloGrafico="Valor por ação orçamentária, do PL ao autógrafo"
           />
         </section>
@@ -264,6 +267,7 @@ export default function AbaPLOA({
           </div>
           <GraficoBarrasPLOA
             dados={agregados.map((a) => ({ chave: a.id, rotulo: a.rotulo, valor: a.pl, cor: a.cor }))}
+            mostrarPercentual
             rotuloGrafico="Valor total por Força no PL"
           />
           <p className="painel-rodape">
