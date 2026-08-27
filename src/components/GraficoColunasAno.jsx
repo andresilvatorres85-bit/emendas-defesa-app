@@ -56,6 +56,10 @@ export default function GraficoColunasAno({
   corPorColuna = null,
   rotuloEixo,
   vazio = 'Sem valores para os filtros aplicados.',
+  // Modificador de aparência aplicado ao <figure> raiz — usado, por exemplo,
+  // para `colunas-fina`, que estreita as barras dos gráficos de composição
+  // densos (GND, RP e ciclo do Histórico) sem tocar na lógica do componente.
+  className = '',
 }) {
   const [hover, setHover] = useState(null)
 
@@ -95,7 +99,7 @@ export default function GraficoColunasAno({
   const empilha = empilhado || proporcao
 
   return (
-    <figure className="colunas" aria-label={rotuloEixo || 'Comparativo por exercício'}>
+    <figure className={`colunas${className ? ` ${className}` : ''}`} aria-label={rotuloEixo || 'Comparativo por exercício'}>
       <div className="colunas-plot" style={{ '--n-anos': anos.length }}>
         {anos.map((ano, i) => {
           const total = totais[i]

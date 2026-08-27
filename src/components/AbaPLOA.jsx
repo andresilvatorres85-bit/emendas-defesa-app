@@ -10,6 +10,7 @@ import BotaoPPTX from './BotaoPPTX.jsx'
 import GraficoCascata from './GraficoCascata.jsx'
 import GraficoBarrasPLOA from './GraficoBarrasPLOA.jsx'
 import GraficoColunasAno from './GraficoColunasAno.jsx'
+import { FolhaDashboardPLOA } from './FolhaPDF.jsx'
 
 // Subaba "Dashboard PLOA": o retrato de UM exercício, do projeto de lei ao
 // autógrafo. Recebe as dotações já filtradas; `registrosTodasForcas` é o mesmo
@@ -35,7 +36,7 @@ function AvisoDuplicado({ duplicados, anosEmTela }) {
 
 export default function AbaPLOA({
   registros, registrosTodasForcas, anos, fasesVazias = {}, duplicados = [],
-  contexto, onExportarSlide,
+  contexto, onExportarSlide, orgaosTexto = '', exercicioTexto = '',
 }) {
   const todasForcas = registrosTodasForcas ?? registros
   const agregados = useMemo(() => porAgregado(todasForcas), [todasForcas])
@@ -97,6 +98,7 @@ export default function AbaPLOA({
 
   return (
     <>
+      <div className="ploa-tela">
       <header className="folha-cab">
         <h2>PLOA — DESPESAS POR FASE DE ELABORAÇÃO</h2>
         <p>Ministério da Defesa · Órgão 52000 · todos os setores</p>
@@ -385,6 +387,26 @@ export default function AbaPLOA({
             filtro de Órgão.
           </p>
         </section>
+      </div>
+      </div>
+
+      {/* Só aparece na impressão via botão "Exportar PDF" (ver styles.css). */}
+      <div className="folha-pdf" aria-hidden>
+        <FolhaDashboardPLOA
+          orgaosTexto={orgaosTexto}
+          exercicioTexto={exercicioTexto}
+          rps={rps}
+          gnds={gnds}
+          uos={uos}
+          acoes={acoesTodas}
+          agregados={agregados}
+          plAut={plAut}
+          ciclo={cicloDados}
+          totalPL={totalPL}
+          totalAutografo={totalAutografo}
+          dotacoes={registros.length}
+          anosEmTela={anosEmTela}
+        />
       </div>
     </>
   )

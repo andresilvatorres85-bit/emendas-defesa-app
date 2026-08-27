@@ -295,6 +295,16 @@ export default function App() {
   const recorteHistPLOA = filtrosAtivosPLOA.length
     ? `Todos os exercícios (${(ploa.anos ?? []).join(', ')}) · filtros — ${filtrosAtivosPLOA.join(' · ')}`
     : `Todos os exercícios (${(ploa.anos ?? []).join(', ')}) · sem outros filtros`
+  // Textos que a folha A4 imprime no cabeçalho de cada subaba do PLOA. O
+  // Dashboard destaca o Órgão (é o recorte que o painel aplica); o Histórico,
+  // que ignora o Ano, discrimina todos os filtros selecionados.
+  const orgaosSelecionados = [...(filtros.orgao ?? [])]
+  const orgaosTextoPLOA = orgaosSelecionados.length
+    ? orgaosSelecionados.join(', ')
+    : 'Todos os órgãos do 52000'
+  const filtrosTextoHistPLOA = filtrosAtivosPLOA.length
+    ? filtrosAtivosPLOA.join(' · ')
+    : 'sem filtros aplicados (todos os órgãos e exercícios)'
   const escopoPLOA = 'Ministério da Defesa · Órgão 52000 · todos os setores'
   const totaisPLOA = ploaSomaFases(ploaFiltrados)
   const contextoPLOA =
@@ -358,6 +368,23 @@ export default function App() {
   const baixarSlidePLOA = (id) => exportarSlidePPTX(cargaPLOA(), id)
   const baixarPPTXHistPLOA = () => exportarPPTXHistoricoPLOA(cargaHistPLOA())
   const baixarSlideHistPLOA = (id) => exportarSlidePPTX(cargaHistPLOA(), id)
+
+  // "Exportar PDF": marca a raiz com `data-imprimindo` (o que revela a folha A4
+  // e esconde a tela, ver styles.css) e abre o diálogo de impressão. A marca é
+  // removida quando o diálogo fecha. Dois requestAnimationFrame garantem que o
+  // CSS de impressão já assentou antes de o diálogo capturar o layout.
+  const exportarPDF = () => {
+    const raiz = document.documentElement
+    raiz.setAttribute('data-imprimindo', aba)
+    const restaurar = () => {
+      raiz.removeAttribute('data-imprimindo')
+      window.removeEventListener('afterprint', restaurar)
+    }
+    window.addEventListener('afterprint', restaurar)
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()))
+  }
+  // Só as subabas do PLOA têm folha A4 dedicada (ver FolhaPDF.jsx).
+  const ABAS_COM_PDF = new Set(['ploa-dashboard', 'ploa-historico'])
 
   // Abas que exportam o baralho inteiro (as demais exportam só por gráfico).
   const ABAS_COM_BARALHO = {
@@ -444,6 +471,16 @@ export default function App() {
             title={ABAS_COM_BARALHO[aba].dica}
           >
             Exportar PPTX
+          </button>
+        )}
+        {ABAS_COM_PDF.has(aba) && (
+          <button
+            type="button"
+            className="btn-pdf"
+            onClick={exportarPDF}
+            title="Exportar esta subaba em PDF (papel A4, retrato, modo claro)"
+          >
+            Exportar PDF
           </button>
         )}
       </section>
@@ -614,6 +651,8 @@ export default function App() {
             duplicados={ploa.anosDuplicados ?? []}
             contexto={contextoPLOA}
             onExportarSlide={baixarSlidePLOA}
+            orgaosTexto={orgaosTextoPLOA}
+            exercicioTexto={anoTextoPLOA}
           />
         )}
 
@@ -624,6 +663,7 @@ export default function App() {
             duplicados={ploa.anosDuplicados ?? []}
             contexto={contextoHistPLOA}
             onExportarSlide={baixarSlideHistPLOA}
+            filtrosTexto={filtrosTextoHistPLOA}
           />
         )}
       </main>

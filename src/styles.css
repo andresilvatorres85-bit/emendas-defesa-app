@@ -1096,3 +1096,144 @@ body {
 
   a[href]::after { content: none !important; }
 }
+
+/* ====================================================================== */
+/* Barras estreitas: gráficos de composição/comparação densos do Histórico */
+/* (GND, RP e ciclo). Pedido do usuário — reduzir a largura das barras.     */
+/* ====================================================================== */
+.colunas-fina .colunas-trilho { justify-content: center; }
+.colunas-fina .colunas-pilha { max-width: 2.1rem; }
+.colunas-fina .colunas-barra { max-width: 1.5rem; }
+
+/* ====================================================================== */
+/* Botão "Exportar PDF" — irmão do "Exportar PPTX" na barra de filtros.    */
+/* Contorno (não sólido) para se distinguir do PPTX ao lado.               */
+/* ====================================================================== */
+.btn-pdf {
+  appearance: none; cursor: pointer; font: inherit;
+  font-size: 0.76rem; font-weight: 700; line-height: 1;
+  padding: 0.44rem 0.75rem; align-self: center; margin-left: 0.5rem;
+  border: 1px solid var(--acento); border-radius: 999px;
+  background: transparent; color: var(--acento); white-space: nowrap;
+}
+.btn-pdf:hover { background: color-mix(in oklab, var(--acento) 12%, transparent); }
+.btn-pdf:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+/* ====================================================================== */
+/* Folha A4 do botão "Exportar PDF" (subabas do PLOA).                     */
+/* Só existe no papel: escondida na tela e revelada dentro de @media print */
+/* quando o botão marca :root[data-imprimindo]. A tela (.ploa-tela) some   */
+/* nesse momento, para não sair duplicada.                                 */
+/* ====================================================================== */
+.folha-pdf { display: none; }
+
+@media print {
+  :root[data-imprimindo] .ploa-tela { display: none !important; }
+  :root[data-imprimindo] .folha-pdf { display: block; }
+
+  .folha-pdf { font-size: 9pt; color: var(--tinta); }
+
+  /* cabeça da folha: título + linha de recorte, nada mais */
+  .folha-pdf .pdf-cabeca { margin: 0 0 4mm; }
+  .folha-pdf .pdf-titulo {
+    margin: 0 0 1mm; font-size: 17pt; font-weight: 800; letter-spacing: 0.01em;
+  }
+  .folha-pdf .pdf-recorte { margin: 0; font-size: 9pt; color: var(--tinta-2); }
+  .folha-pdf .pdf-recorte-rot { font-weight: 700; color: var(--tinta); }
+  .folha-pdf .pdf-recorte-sec { color: var(--tinta-fraca); font-size: 8.5pt; margin-top: 0.4mm; }
+
+  /* páginas: cada grupo começa numa folha nova; a de conteúdo longo quebra
+     dentro de si (ação) */
+  .folha-pdf .pdf-pagina-nova { break-before: page; page-break-before: always; }
+  .folha-pdf .pdf-pagina { break-inside: auto; }
+
+  /* 4 cards superiores do Dashboard (o primeiro sem qualquer degradê) */
+  .folha-pdf .pdf-topo {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm;
+    margin: 0 0 4mm; break-inside: avoid;
+  }
+  .folha-pdf .pdf-mini {
+    border: 1px solid #d8d8d4; border-radius: 5px; padding: 2.6mm 2.6mm;
+    text-align: center; background: var(--superficie);
+  }
+  .folha-pdf .pdf-mini-rot {
+    margin: 0; font-size: 7pt; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--tinta-fraca);
+  }
+  .folha-pdf .pdf-mini-val {
+    margin: 1mm 0 0; font-size: 14pt; font-weight: 800; line-height: 1.05;
+    letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .folha-pdf .pdf-mini-heroi .pdf-mini-val { font-size: 16pt; }
+  .folha-pdf .pdf-mini-un { font-size: 0.5em; font-weight: 700; color: var(--tinta-fraca); margin-left: 0.2em; }
+  .folha-pdf .pdf-mini-nota { margin: 0.9mm 0 0; font-size: 6.4pt; color: var(--tinta-fraca); line-height: 1.2; }
+
+  /* cards de gráfico */
+  .folha-pdf .pdf-card {
+    border: 1px solid #d8d8d4; border-radius: 6px; padding: 3mm 4mm 4mm;
+    margin: 0 0 4mm; background: var(--superficie);
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .folha-pdf .pdf-card-fluido { break-inside: auto; page-break-inside: auto; }
+  .folha-pdf .pdf-card-cab { display: flex; align-items: baseline; gap: 3mm; margin: 0 0 2mm; }
+  .folha-pdf .pdf-card-txt { flex: 1 1 auto; min-width: 0; }
+  .folha-pdf .pdf-card h2 { margin: 0; font-size: 11pt; font-weight: 700; }
+  .folha-pdf .pdf-card-sub { margin: 0.4mm 0 0; font-size: 7.5pt; color: var(--tinta-fraca); }
+  .folha-pdf .pdf-card-total {
+    font-size: 10pt; font-weight: 800; color: var(--tinta); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Dashboard: RP (cascata) + GND lado a lado */
+  .folha-pdf .pdf-linha-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; break-inside: avoid;
+  }
+  .folha-pdf .pdf-linha-2 .pdf-card { margin: 0; }
+
+  /* gráficos compactados para caber na folha */
+  .folha-pdf .colunas { --colunas-h: 26mm; --colunas-topo: 2em; }
+  .folha-pdf .cascata-svg { min-width: 0 !important; }
+  .folha-pdf .cascata-dica, .folha-pdf .matriz-dica { display: none; }
+  .folha-pdf .matriz-legenda { font-size: 6.8pt; margin-top: 1.2mm; padding-top: 1.2mm; }
+  .folha-pdf .barras-legenda { font-size: 7.2pt; }
+  .folha-pdf .colunas-total { font-size: 6.6pt; }
+  .folha-pdf .colunas-rotulo { font-size: 7pt; padding-top: 1mm; }
+  .folha-pdf .colunas-barra-rotulo { font-size: 5.4pt; margin-bottom: 1.5px; }
+
+  /* MATRIZ no papel: todas as colunas de ano precisam caber na largura A4 — na
+     tela a tabela rola na horizontal, mas no papel a rolagem seria um corte.
+     `table-layout: fixed` + colunas estreitas fazem os 8 exercícios + total
+     caberem sem clipe. */
+  .folha-pdf .matriz-rolagem { overflow: visible; margin: 0; padding: 0; }
+  .folha-pdf .matriz { table-layout: fixed; font-size: 6.6pt; }
+  .folha-pdf .matriz th, .folha-pdf .matriz td { padding: 0.7mm 0.8mm; }
+  .folha-pdf .matriz thead th { font-size: 6.2pt; letter-spacing: 0.02em; }
+  .folha-pdf .matriz .matriz-cat { width: 34mm; }
+  .folha-pdf .matriz th.matriz-total, .folha-pdf .matriz td.matriz-total { width: 15mm; }
+  .folha-pdf .matriz-celula { min-width: 0; }
+  .folha-pdf .matriz-seta { font-size: 0.5em; margin-right: 0.12em; }
+  .folha-pdf .matriz-sub { font-size: 5.8pt; }
+  .folha-pdf .matriz-trilho { margin-top: 0.4mm; height: 2px; }
+
+  /* Histórico: cards de exercício, numa única fileira compacta */
+  .folha-pdf .pdf-anos {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(20mm, 1fr));
+    gap: 2mm; margin: 0 0 3.5mm; break-inside: avoid;
+  }
+  .folha-pdf .pdf-ano {
+    border: 1px solid #d8d8d4; border-radius: 4px; padding: 1.8mm 1.8mm;
+    background: var(--superficie);
+  }
+  .folha-pdf .pdf-ano-ano { margin: 0; font-size: 8.5pt; font-weight: 800; }
+  .folha-pdf .pdf-ano-val { margin: 0.5mm 0 0; font-size: 9.5pt; font-weight: 800; letter-spacing: -0.02em; }
+  .folha-pdf .pdf-ano-un { font-size: 0.55em; font-weight: 700; color: var(--tinta-fraca); }
+  .folha-pdf .pdf-ano-linhas { margin: 1.2mm 0 0; font-size: 6pt; display: grid; gap: 0.5mm; }
+  .folha-pdf .pdf-ano-linhas > div { display: flex; justify-content: space-between; gap: 0.8mm; }
+  .folha-pdf .pdf-ano-linhas dt { color: var(--tinta-fraca); margin: 0; }
+  .folha-pdf .pdf-ano-linhas dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* conteúdo longo quebra entre itens/linhas, nunca no meio de um */
+  .folha-pdf .pbar-item { break-inside: avoid; page-break-inside: avoid; }
+  .folha-pdf .matriz tr { break-inside: avoid; page-break-inside: avoid; }
+  .folha-pdf .matriz thead { display: table-header-group; }
+}

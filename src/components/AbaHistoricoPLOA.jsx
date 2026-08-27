@@ -9,6 +9,7 @@ import BotaoPNG from './BotaoPNG.jsx'
 import BotaoPPTX from './BotaoPPTX.jsx'
 import GraficoColunasAno from './GraficoColunasAno.jsx'
 import MatrizAnos from './MatrizAnos.jsx'
+import { FolhaHistoricoPLOA } from './FolhaPDF.jsx'
 
 // Subaba "Histórico PLOA": as mesmas perguntas do Dashboard PLOA, mas ao longo
 // dos exercícios. Como a aba Histórico das emendas, esta IGNORA o filtro de Ano
@@ -33,6 +34,7 @@ function Variacao({ pct }) {
 
 export default function AbaHistoricoPLOA({
   registros, registrosTodasForcas, duplicados = [], contexto, onExportarSlide,
+  filtrosTexto = '',
 }) {
   const todasForcas = registrosTodasForcas ?? registros
   const anosResumo = useMemo(() => resumoPorAno(registros), [registros])
@@ -85,6 +87,7 @@ export default function AbaHistoricoPLOA({
 
   return (
     <>
+      <div className="ploa-tela">
       <header className="folha-cab">
         <h2>PLOA — HISTÓRICO DOS EXERCÍCIOS</h2>
         <p>Ministério da Defesa · Órgão 52000 · todos os setores</p>
@@ -140,7 +143,7 @@ export default function AbaHistoricoPLOA({
       </div>
 
       <div className="paineis">
-        {/* projeto de lei por exercício */}
+        {/* 1 — projeto de lei por exercício */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
@@ -162,7 +165,74 @@ export default function AbaHistoricoPLOA({
           />
         </section>
 
-        {/* PL x autógrafo por exercício */}
+        {/* 2 — composição por GND (barras estreitas) */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Composição por GND</h2>
+              <p className="painel-sub">Participação de cada grupo de natureza da despesa no autógrafo</p>
+            </div>
+            <span className="painel-total">{fmtBi(totalPeriodo)}</span>
+            <BotaoPPTX titulo="Composição por GND" onExportar={() => onExportarSlide('hploa-gnd')} />
+            <BotaoPNG titulo="Composição por GND" contexto={contexto} />
+          </div>
+          <GraficoColunasAno
+            anos={gnds.anos}
+            series={gnds.series}
+            empilhado
+            className="colunas-fina"
+            formatar={fmtBi}
+            formatarTotal={(v) => fmtBi(v)}
+            rotuloEixo="Valor por grupo de natureza da despesa, por exercício"
+          />
+        </section>
+
+        {/* 3 — matriz de UO */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Unidades orçamentárias por exercício</h2>
+              <p className="painel-sub">
+                {uos.series.length} UO · valor no autógrafo · valores em R$ bilhões
+              </p>
+            </div>
+            <span className="painel-total">{fmtBi(uos.series.reduce((s, l) => s + l.total, 0))}</span>
+            <BotaoPPTX titulo="Unidades orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-uo')} />
+            <BotaoPNG titulo="Unidades orçamentárias por exercício" contexto={contexto} />
+          </div>
+          <MatrizAnos
+            anos={uos.anos}
+            linhas={uos.series}
+            formatar={fmtBiSeco}
+            rotuloColuna="Unidade orçamentária"
+            limite={5}
+            passoExpansao={5}
+          />
+        </section>
+
+        {/* 4 — composição por RP (barras estreitas) */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Composição por RP</h2>
+              <p className="painel-sub">Participação de cada resultado primário no autógrafo de cada ano</p>
+            </div>
+            <span className="painel-total">{fmtBi(totalPeriodo)}</span>
+            <BotaoPPTX titulo="Composição por RP" onExportar={() => onExportarSlide('hploa-rp')} />
+            <BotaoPNG titulo="Composição por RP" contexto={contexto} />
+          </div>
+          <GraficoColunasAno
+            anos={rps.anos}
+            series={rps.series}
+            proporcao
+            className="colunas-fina"
+            formatar={fmtBi}
+            formatarTotal={(_, i) => rps.anos[i]}
+            rotuloEixo="Participação de cada RP no autógrafo, por exercício"
+          />
+        </section>
+
+        {/* 5 — PL x autógrafo por exercício */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
@@ -208,7 +278,7 @@ export default function AbaHistoricoPLOA({
           </div>
         </section>
 
-        {/* ciclo por exercício */}
+        {/* 6 — ciclo por exercício (barras estreitas, sem disclaimer) */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
@@ -224,16 +294,38 @@ export default function AbaHistoricoPLOA({
           <GraficoColunasAno
             anos={anos}
             series={serieCiclo}
+            className="colunas-fina"
             formatar={fmtBi}
             formatarTotal={() => ''}
             rotuloEixo="Valor em cada fase do ciclo, por exercício"
           />
-          <p className="painel-rodape">
-            Onde a planilha não traz a fase, o valor exibido é o da fase anterior (regra de herança).
-          </p>
         </section>
 
-        {/* por Força */}
+        {/* 7 — matriz de ações */}
+        <section className="painel-grafico p-12">
+          <div className="painel-cab">
+            <div className="painel-cab-txt">
+              <h2>Ações orçamentárias por exercício</h2>
+              <p className="painel-sub">
+                {fmtInt(acoes.total)} ações · valor no autógrafo · valores em R$ bilhões
+              </p>
+            </div>
+            <span className="painel-total">{fmtBi(acoes.series.reduce((s, l) => s + l.total, 0))}</span>
+            <BotaoPPTX titulo="Ações orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-acao')} />
+            <BotaoPNG titulo="Ações orçamentárias por exercício" contexto={contexto} />
+          </div>
+          <MatrizAnos
+            anos={acoes.anos}
+            linhas={acoes.series}
+            formatar={fmtBiSeco}
+            rotuloColuna="Ação orçamentária"
+            limite={15}
+            passoExpansao={15}
+            destaqueCodigo
+          />
+        </section>
+
+        {/* 8 — por Força */}
         <section className="painel-grafico p-12">
           <div className="painel-cab">
             <div className="painel-cab-txt">
@@ -257,95 +349,26 @@ export default function AbaHistoricoPLOA({
             Painel comparativo entre Forças — ignora também o filtro de Órgão.
           </p>
         </section>
+      </div>
+      </div>
 
-        {/* composição por RP */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Composição por RP</h2>
-              <p className="painel-sub">Participação de cada resultado primário no autógrafo de cada ano</p>
-            </div>
-            <span className="painel-total">{fmtBi(totalPeriodo)}</span>
-            <BotaoPPTX titulo="Composição por RP" onExportar={() => onExportarSlide('hploa-rp')} />
-            <BotaoPNG titulo="Composição por RP" contexto={contexto} />
-          </div>
-          <GraficoColunasAno
-            anos={rps.anos}
-            series={rps.series}
-            proporcao
-            formatar={fmtBi}
-            formatarTotal={(_, i) => rps.anos[i]}
-            rotuloEixo="Participação de cada RP no autógrafo, por exercício"
-          />
-        </section>
-
-        {/* composição por GND */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Composição por GND</h2>
-              <p className="painel-sub">Participação de cada grupo de natureza da despesa no autógrafo</p>
-            </div>
-            <span className="painel-total">{fmtBi(totalPeriodo)}</span>
-            <BotaoPPTX titulo="Composição por GND" onExportar={() => onExportarSlide('hploa-gnd')} />
-            <BotaoPNG titulo="Composição por GND" contexto={contexto} />
-          </div>
-          <GraficoColunasAno
-            anos={gnds.anos}
-            series={gnds.series}
-            empilhado
-            formatar={fmtBi}
-            formatarTotal={(v) => fmtBi(v)}
-            rotuloEixo="Valor por grupo de natureza da despesa, por exercício"
-          />
-        </section>
-
-        {/* matriz de UO */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Unidades orçamentárias por exercício</h2>
-              <p className="painel-sub">
-                {uos.series.length} UO · valor no autógrafo · valores em R$ bilhões
-              </p>
-            </div>
-            <span className="painel-total">{fmtBi(uos.series.reduce((s, l) => s + l.total, 0))}</span>
-            <BotaoPPTX titulo="Unidades orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-uo')} />
-            <BotaoPNG titulo="Unidades orçamentárias por exercício" contexto={contexto} />
-          </div>
-          <MatrizAnos
-            anos={uos.anos}
-            linhas={uos.series}
-            formatar={fmtBiSeco}
-            rotuloColuna="Unidade orçamentária"
-            limite={5}
-            passoExpansao={5}
-          />
-        </section>
-
-        {/* matriz de ações */}
-        <section className="painel-grafico p-12">
-          <div className="painel-cab">
-            <div className="painel-cab-txt">
-              <h2>Ações orçamentárias por exercício</h2>
-              <p className="painel-sub">
-                {fmtInt(acoes.total)} ações · valor no autógrafo · valores em R$ bilhões
-              </p>
-            </div>
-            <span className="painel-total">{fmtBi(acoes.series.reduce((s, l) => s + l.total, 0))}</span>
-            <BotaoPPTX titulo="Ações orçamentárias por exercício" onExportar={() => onExportarSlide('hploa-acao')} />
-            <BotaoPNG titulo="Ações orçamentárias por exercício" contexto={contexto} />
-          </div>
-          <MatrizAnos
-            anos={acoes.anos}
-            linhas={acoes.series}
-            formatar={fmtBiSeco}
-            rotuloColuna="Ação orçamentária"
-            limite={15}
-            passoExpansao={15}
-            destaqueCodigo
-          />
-        </section>
+      {/* Só aparece na impressão via botão "Exportar PDF" (ver styles.css). */}
+      <div className="folha-pdf" aria-hidden>
+        <FolhaHistoricoPLOA
+          filtrosTexto={filtrosTexto}
+          anosResumo={anosResumo}
+          anos={anos}
+          coresPorAno={coresPorAno}
+          seriePL={seriePL}
+          serieRito={serieRito}
+          serieCiclo={serieCiclo}
+          forcas={forcas}
+          uos={uos}
+          rps={rps}
+          gnds={gnds}
+          acoes={acoes}
+          totalPeriodo={totalPeriodo}
+        />
       </div>
     </>
   )
