@@ -1121,119 +1121,122 @@ body {
 
 /* ====================================================================== */
 /* Folha A4 do botão "Exportar PDF" (subabas do PLOA).                     */
-/* Só existe no papel: escondida na tela e revelada dentro de @media print */
-/* quando o botão marca :root[data-imprimindo]. A tela (.ploa-tela) some   */
-/* nesse momento, para não sair duplicada.                                 */
+/*                                                                        */
+/* O PDF é gerado DIRETO no navegador (sem window.print()): o pdf.js clona */
+/* esta folha para um "palco" fora da tela, marca-o com .folha-render,     */
+/* pagina o conteúdo em folhas A4 e rasteriza cada uma. Por isso as regras */
+/* de leiaute abaixo valem na TELA (não em @media print) — mas a folha só  */
+/* fica visível dentro do palco: no app ela continua display:none.         */
 /* ====================================================================== */
 .folha-pdf { display: none; }
+.folha-pdf.folha-render { display: block; }
+/* modo claro forçado no palco, como o antigo truque de impressão */
+.folha-render { color-scheme: light; }
+.folha-render .pdf-pagina-conteudo { box-sizing: border-box; }
 
-@media print {
-  :root[data-imprimindo] .ploa-tela { display: none !important; }
-  :root[data-imprimindo] .folha-pdf { display: block; }
+.folha-pdf { font-size: 9pt; color: var(--tinta); }
 
-  .folha-pdf { font-size: 9pt; color: var(--tinta); }
-
-  /* cabeça da folha: título + linha de recorte, nada mais */
-  .folha-pdf .pdf-cabeca { margin: 0 0 4mm; }
-  .folha-pdf .pdf-titulo {
-    margin: 0 0 1mm; font-size: 17pt; font-weight: 800; letter-spacing: 0.01em;
-  }
-  .folha-pdf .pdf-recorte { margin: 0; font-size: 9pt; color: var(--tinta-2); }
-  .folha-pdf .pdf-recorte-rot { font-weight: 700; color: var(--tinta); }
-  .folha-pdf .pdf-recorte-sec { color: var(--tinta-fraca); font-size: 8.5pt; margin-top: 0.4mm; }
-
-  /* páginas: cada grupo começa numa folha nova; a de conteúdo longo quebra
-     dentro de si (ação) */
-  .folha-pdf .pdf-pagina-nova { break-before: page; page-break-before: always; }
-  .folha-pdf .pdf-pagina { break-inside: auto; }
-
-  /* 4 cards superiores do Dashboard (o primeiro sem qualquer degradê) */
-  .folha-pdf .pdf-topo {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm;
-    margin: 0 0 4mm; break-inside: avoid;
-  }
-  .folha-pdf .pdf-mini {
-    border: 1px solid #d8d8d4; border-radius: 5px; padding: 2.6mm 2.6mm;
-    text-align: center; background: var(--superficie);
-  }
-  .folha-pdf .pdf-mini-rot {
-    margin: 0; font-size: 7pt; font-weight: 700; letter-spacing: 0.05em;
-    text-transform: uppercase; color: var(--tinta-fraca);
-  }
-  .folha-pdf .pdf-mini-val {
-    margin: 1mm 0 0; font-size: 14pt; font-weight: 800; line-height: 1.05;
-    letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums;
-  }
-  .folha-pdf .pdf-mini-heroi .pdf-mini-val { font-size: 16pt; }
-  .folha-pdf .pdf-mini-un { font-size: 0.5em; font-weight: 700; color: var(--tinta-fraca); margin-left: 0.2em; }
-  .folha-pdf .pdf-mini-nota { margin: 0.9mm 0 0; font-size: 6.4pt; color: var(--tinta-fraca); line-height: 1.2; }
-
-  /* cards de gráfico */
-  .folha-pdf .pdf-card {
-    border: 1px solid #d8d8d4; border-radius: 6px; padding: 3mm 4mm 4mm;
-    margin: 0 0 4mm; background: var(--superficie);
-    break-inside: avoid; page-break-inside: avoid;
-  }
-  .folha-pdf .pdf-card-fluido { break-inside: auto; page-break-inside: auto; }
-  .folha-pdf .pdf-card-cab { display: flex; align-items: baseline; gap: 3mm; margin: 0 0 2mm; }
-  .folha-pdf .pdf-card-txt { flex: 1 1 auto; min-width: 0; }
-  .folha-pdf .pdf-card h2 { margin: 0; font-size: 11pt; font-weight: 700; }
-  .folha-pdf .pdf-card-sub { margin: 0.4mm 0 0; font-size: 7.5pt; color: var(--tinta-fraca); }
-  .folha-pdf .pdf-card-total {
-    font-size: 10pt; font-weight: 800; color: var(--tinta); white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Dashboard: RP (cascata) + GND lado a lado */
-  .folha-pdf .pdf-linha-2 {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; break-inside: avoid;
-  }
-  .folha-pdf .pdf-linha-2 .pdf-card { margin: 0; }
-
-  /* gráficos compactados para caber na folha */
-  .folha-pdf .colunas { --colunas-h: 26mm; --colunas-topo: 2em; }
-  .folha-pdf .cascata-svg { min-width: 0 !important; }
-  .folha-pdf .cascata-dica, .folha-pdf .matriz-dica { display: none; }
-  .folha-pdf .matriz-legenda { font-size: 6.8pt; margin-top: 1.2mm; padding-top: 1.2mm; }
-  .folha-pdf .barras-legenda { font-size: 7.2pt; }
-  .folha-pdf .colunas-total { font-size: 6.6pt; }
-  .folha-pdf .colunas-rotulo { font-size: 7pt; padding-top: 1mm; }
-  .folha-pdf .colunas-barra-rotulo { font-size: 5.4pt; margin-bottom: 1.5px; }
-
-  /* MATRIZ no papel: todas as colunas de ano precisam caber na largura A4 — na
-     tela a tabela rola na horizontal, mas no papel a rolagem seria um corte.
-     `table-layout: fixed` + colunas estreitas fazem os 8 exercícios + total
-     caberem sem clipe. */
-  .folha-pdf .matriz-rolagem { overflow: visible; margin: 0; padding: 0; }
-  .folha-pdf .matriz { table-layout: fixed; font-size: 6.6pt; }
-  .folha-pdf .matriz th, .folha-pdf .matriz td { padding: 0.7mm 0.8mm; }
-  .folha-pdf .matriz thead th { font-size: 6.2pt; letter-spacing: 0.02em; }
-  .folha-pdf .matriz .matriz-cat { width: 34mm; }
-  .folha-pdf .matriz th.matriz-total, .folha-pdf .matriz td.matriz-total { width: 15mm; }
-  .folha-pdf .matriz-celula { min-width: 0; }
-  .folha-pdf .matriz-seta { font-size: 0.5em; margin-right: 0.12em; }
-  .folha-pdf .matriz-sub { font-size: 5.8pt; }
-  .folha-pdf .matriz-trilho { margin-top: 0.4mm; height: 2px; }
-
-  /* Histórico: cards de exercício, numa única fileira compacta */
-  .folha-pdf .pdf-anos {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(20mm, 1fr));
-    gap: 2mm; margin: 0 0 3.5mm; break-inside: avoid;
-  }
-  .folha-pdf .pdf-ano {
-    border: 1px solid #d8d8d4; border-radius: 4px; padding: 1.8mm 1.8mm;
-    background: var(--superficie);
-  }
-  .folha-pdf .pdf-ano-ano { margin: 0; font-size: 8.5pt; font-weight: 800; }
-  .folha-pdf .pdf-ano-val { margin: 0.5mm 0 0; font-size: 9.5pt; font-weight: 800; letter-spacing: -0.02em; }
-  .folha-pdf .pdf-ano-un { font-size: 0.55em; font-weight: 700; color: var(--tinta-fraca); }
-  .folha-pdf .pdf-ano-linhas { margin: 1.2mm 0 0; font-size: 6pt; display: grid; gap: 0.5mm; }
-  .folha-pdf .pdf-ano-linhas > div { display: flex; justify-content: space-between; gap: 0.8mm; }
-  .folha-pdf .pdf-ano-linhas dt { color: var(--tinta-fraca); margin: 0; }
-  .folha-pdf .pdf-ano-linhas dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-  /* conteúdo longo quebra entre itens/linhas, nunca no meio de um */
-  .folha-pdf .pbar-item { break-inside: avoid; page-break-inside: avoid; }
-  .folha-pdf .matriz tr { break-inside: avoid; page-break-inside: avoid; }
-  .folha-pdf .matriz thead { display: table-header-group; }
+/* cabeça da folha: título + linha de recorte (só na 1ª página) */
+.folha-pdf .pdf-cabeca { margin: 0 0 4mm; }
+.folha-pdf .pdf-titulo {
+  margin: 0 0 1mm; font-size: 17pt; font-weight: 800; letter-spacing: 0.01em;
 }
+.folha-pdf .pdf-recorte { margin: 0; font-size: 9pt; color: var(--tinta-2); }
+.folha-pdf .pdf-recorte-rot { font-weight: 700; color: var(--tinta); }
+.folha-pdf .pdf-recorte-sec { color: var(--tinta-fraca); font-size: 8.5pt; margin-top: 0.4mm; }
+
+/* 4 cards superiores do Dashboard (o primeiro sem qualquer degradê) */
+.folha-pdf .pdf-topo {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 0 0 4mm;
+}
+.folha-pdf .pdf-mini {
+  border: 1px solid #d8d8d4; border-radius: 5px; padding: 2.6mm 2.6mm;
+  text-align: center; background: var(--superficie);
+}
+.folha-pdf .pdf-mini-rot {
+  margin: 0; font-size: 7pt; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--tinta-fraca);
+}
+.folha-pdf .pdf-mini-val {
+  margin: 1mm 0 0; font-size: 14pt; font-weight: 800; line-height: 1.05;
+  letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.folha-pdf .pdf-mini-heroi .pdf-mini-val { font-size: 16pt; }
+.folha-pdf .pdf-mini-un { font-size: 0.5em; font-weight: 700; color: var(--tinta-fraca); margin-left: 0.2em; }
+.folha-pdf .pdf-mini-nota { margin: 0.9mm 0 0; font-size: 6.4pt; color: var(--tinta-fraca); line-height: 1.2; }
+
+/* cards de gráfico */
+.folha-pdf .pdf-card {
+  border: 1px solid #d8d8d4; border-radius: 6px; padding: 3mm 4mm 4mm;
+  margin: 0 0 4mm; background: var(--superficie);
+}
+.folha-pdf .pdf-card-cab { display: flex; align-items: baseline; gap: 3mm; margin: 0 0 2mm; }
+.folha-pdf .pdf-card-txt { flex: 1 1 auto; min-width: 0; }
+.folha-pdf .pdf-card h2 { margin: 0; font-size: 11pt; font-weight: 700; }
+.folha-pdf .pdf-card-sub { margin: 0.4mm 0 0; font-size: 7.5pt; color: var(--tinta-fraca); }
+.folha-pdf .pdf-card-total {
+  font-size: 10pt; font-weight: 800; color: var(--tinta); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* último card de uma página não precisa da margem inferior */
+.folha-pdf .pdf-pagina-conteudo > .pdf-card:last-child,
+.folha-pdf .pdf-pagina-conteudo > .pdf-linha-2:last-child { margin-bottom: 0; }
+
+/* Dashboard: RP (cascata) + GND lado a lado */
+.folha-pdf .pdf-linha-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 0 0 4mm;
+}
+.folha-pdf .pdf-linha-2 .pdf-card { margin: 0; }
+
+/* gráficos compactados para caber na folha */
+.folha-pdf .colunas { --colunas-h: 26mm; --colunas-topo: 2em; }
+.folha-pdf .cascata-svg { min-width: 0 !important; }
+.folha-pdf .cascata-dica, .folha-pdf .matriz-dica { display: none; }
+.folha-pdf .matriz-legenda { font-size: 6.8pt; margin-top: 1.2mm; padding-top: 1.2mm; }
+.folha-pdf .barras-legenda { font-size: 7.2pt; }
+.folha-pdf .colunas-total { font-size: 6.6pt; }
+.folha-pdf .colunas-rotulo { font-size: 7pt; padding-top: 1mm; }
+.folha-pdf .colunas-barra-rotulo { font-size: 5.4pt; margin-bottom: 1.5px; }
+
+/* barras horizontais (Ação, UO, GND, Força) compactadas para render do PDF —
+   espelha o antigo bloco @media print para adensar a lista de ações */
+.folha-pdf .pbar-lista { gap: 1.4mm; }
+.folha-pdf .pbar-item { gap: 0.4mm; }
+.folha-pdf .pbar-topo { gap: 2mm; }
+.folha-pdf .pbar-nome, .folha-pdf .pbar-valor { font-size: 8.2pt; }
+.folha-pdf .pbar-sub, .folha-pdf .pbar-nota { font-size: 7pt; }
+.folha-pdf .pbar-codigo { font-size: 7.4pt; }
+.folha-pdf .pbar-trilho { height: 6px; }
+
+/* MATRIZ no papel: todas as colunas de ano precisam caber na largura A4 — na
+   tela a tabela rola na horizontal, mas no papel a rolagem seria um corte.
+   `table-layout: fixed` + colunas estreitas fazem os 8 exercícios + total
+   caberem sem clipe. */
+.folha-pdf .matriz-rolagem { overflow: visible; margin: 0; padding: 0; }
+.folha-pdf .matriz { table-layout: fixed; font-size: 6.6pt; }
+.folha-pdf .matriz th, .folha-pdf .matriz td { padding: 0.7mm 0.8mm; }
+.folha-pdf .matriz thead th { font-size: 6.2pt; letter-spacing: 0.02em; }
+.folha-pdf .matriz .matriz-cat { width: 34mm; }
+.folha-pdf .matriz th.matriz-total, .folha-pdf .matriz td.matriz-total { width: 15mm; }
+.folha-pdf .matriz-celula { min-width: 0; }
+.folha-pdf .matriz-seta { font-size: 0.5em; margin-right: 0.12em; }
+.folha-pdf .matriz-sub { font-size: 5.8pt; }
+.folha-pdf .matriz-trilho { margin-top: 0.4mm; height: 2px; }
+
+/* Histórico: cards de exercício, numa única fileira compacta */
+.folha-pdf .pdf-anos {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(20mm, 1fr));
+  gap: 2mm; margin: 0 0 3.5mm;
+}
+.folha-pdf .pdf-ano {
+  border: 1px solid #d8d8d4; border-radius: 4px; padding: 1.8mm 1.8mm;
+  background: var(--superficie);
+}
+.folha-pdf .pdf-ano-ano { margin: 0; font-size: 8.5pt; font-weight: 800; }
+.folha-pdf .pdf-ano-val { margin: 0.5mm 0 0; font-size: 9.5pt; font-weight: 800; letter-spacing: -0.02em; }
+.folha-pdf .pdf-ano-un { font-size: 0.55em; font-weight: 700; color: var(--tinta-fraca); }
+.folha-pdf .pdf-ano-linhas { margin: 1.2mm 0 0; font-size: 6pt; display: grid; gap: 0.5mm; }
+.folha-pdf .pdf-ano-linhas > div { display: flex; justify-content: space-between; gap: 0.8mm; }
+.folha-pdf .pdf-ano-linhas dt { color: var(--tinta-fraca); margin: 0; }
+.folha-pdf .pdf-ano-linhas dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+

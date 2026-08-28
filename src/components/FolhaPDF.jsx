@@ -56,7 +56,7 @@ function CardPDF({ titulo, sub, total, fluido = false, children }) {
 
 // -------------------------------------------------------- Dashboard PLOA ----
 export function FolhaDashboardPLOA({
-  orgaosTexto, exercicioTexto,
+  filtrosTexto,
   rps, gnds, uos, acoes, agregados, plAut, ciclo,
   totalPL, totalAutografo, dotacoes, anosEmTela,
 }) {
@@ -89,9 +89,8 @@ export function FolhaDashboardPLOA({
       <div className="pdf-pagina">
         <Cabeca
           titulo="Análise PLOA"
-          etiqueta="ÓRGÃO"
-          valor={orgaosTexto}
-          exercicio={exercicioTexto}
+          etiqueta="FILTROS"
+          valor={filtrosTexto}
         />
 
         <div className="pdf-topo">

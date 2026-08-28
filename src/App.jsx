@@ -34,6 +34,7 @@ import {
   exportarPPTX, exportarPPTXHistorico, exportarSlidePPTX,
   exportarPPTXPLOA, exportarPPTXHistoricoPLOA,
 } from './pptx.js'
+import { exportarFolhaPDF } from './pdf.js'
 import MultiSelect from './components/MultiSelect.jsx'
 import TemaBotao from './components/TemaBotao.jsx'
 import BotaoPNG from './components/BotaoPNG.jsx'
@@ -87,6 +88,7 @@ const PRIMEIRA_SUBABA = Object.fromEntries(SECOES.map((s) => [s.id, s.subabas[0]
 export default function App() {
   const [dados, setDados] = useState(null)
   const [erro, setErro] = useState(null)
+  const [gerandoPDF, setGerandoPDF] = useState(false)
   const {
     aba, detalhe, filtros,
     irParaAba, abrirDetalhe, setFiltro, limparFiltros, definirPadrao, noPadrao,
@@ -298,10 +300,19 @@ export default function App() {
   // Textos que a folha A4 imprime no cabeçalho de cada subaba do PLOA. O
   // Dashboard destaca o Órgão (é o recorte que o painel aplica); o Histórico,
   // que ignora o Ano, discrimina todos os filtros selecionados.
-  const orgaosSelecionados = [...(filtros.orgao ?? [])]
-  const orgaosTextoPLOA = orgaosSelecionados.length
-    ? orgaosSelecionados.join(', ')
-    : 'Todos os órgãos do 52000'
+  // O Dashboard respeita o filtro de Ano (é o exercício em foco), então o seu
+  // cabeçalho discrimina TODOS os filtros aplicados, o Ano incluído (rotulado
+  // como "Exercício"). O Histórico ignora o Ano e lista só os demais.
+  const filtrosDashSelec = FILTROS_PLOA
+    .filter((f) => filtros[f.id]?.size > 0)
+    .map((f) => {
+      const rot = f.id === 'ano' ? 'Exercício' : f.rotulo
+      const vals = [...filtros[f.id]].map((v) => (f.formatar ? f.formatar(v) : v)).join(', ')
+      return `${rot}: ${vals}`
+    })
+  const filtrosTextoDashPLOA = filtrosDashSelec.length
+    ? filtrosDashSelec.join(' · ')
+    : 'Todos os órgãos e exercícios do 52000 (sem filtros)'
   const filtrosTextoHistPLOA = filtrosAtivosPLOA.length
     ? filtrosAtivosPLOA.join(' · ')
     : 'sem filtros aplicados (todos os órgãos e exercícios)'
@@ -369,19 +380,22 @@ export default function App() {
   const baixarPPTXHistPLOA = () => exportarPPTXHistoricoPLOA(cargaHistPLOA())
   const baixarSlideHistPLOA = (id) => exportarSlidePPTX(cargaHistPLOA(), id)
 
-  // "Exportar PDF": marca a raiz com `data-imprimindo` (o que revela a folha A4
-  // e esconde a tela, ver styles.css) e abre o diálogo de impressão. A marca é
-  // removida quando o diálogo fecha. Dois requestAnimationFrame garantem que o
-  // CSS de impressão já assentou antes de o diálogo capturar o layout.
-  const exportarPDF = () => {
-    const raiz = document.documentElement
-    raiz.setAttribute('data-imprimindo', aba)
-    const restaurar = () => {
-      raiz.removeAttribute('data-imprimindo')
-      window.removeEventListener('afterprint', restaurar)
+  // "Exportar PDF": gera o arquivo DIRETO (sem abrir o diálogo de impressão) a
+  // partir da folha A4 da subaba em tela — ver pdf.js. Sem window.print(), o
+  // navegador não injeta cabeçalho/endereço/data no papel; o rodapé com a data e
+  // hora da exportação é desenhado pelo próprio módulo.
+  const exportarPDF = async () => {
+    if (gerandoPDF) return
+    const folha = document.querySelector('.folha-pdf')
+    const titulo = aba === 'ploa-historico' ? 'Análise Histórico PLOA' : 'Análise PLOA'
+    setGerandoPDF(true)
+    try {
+      await exportarFolhaPDF(folha, titulo)
+    } catch (e) {
+      console.error('Falha ao gerar o PDF:', e)
+    } finally {
+      setGerandoPDF(false)
     }
-    window.addEventListener('afterprint', restaurar)
-    requestAnimationFrame(() => requestAnimationFrame(() => window.print()))
   }
   // Só as subabas do PLOA têm folha A4 dedicada (ver FolhaPDF.jsx).
   const ABAS_COM_PDF = new Set(['ploa-dashboard', 'ploa-historico'])
@@ -478,9 +492,11 @@ export default function App() {
             type="button"
             className="btn-pdf"
             onClick={exportarPDF}
-            title="Exportar esta subaba em PDF (papel A4, retrato, modo claro)"
+            disabled={gerandoPDF}
+            aria-busy={gerandoPDF}
+            title="Exportar esta subaba em PDF (papel A4, retrato) — baixa direto, sem diálogo de impressão"
           >
-            Exportar PDF
+            {gerandoPDF ? 'Gerando PDF…' : 'Exportar PDF'}
           </button>
         )}
       </section>
@@ -651,8 +667,7 @@ export default function App() {
             duplicados={ploa.anosDuplicados ?? []}
             contexto={contextoPLOA}
             onExportarSlide={baixarSlidePLOA}
-            orgaosTexto={orgaosTextoPLOA}
-            exercicioTexto={anoTextoPLOA}
+            filtrosTexto={filtrosTextoDashPLOA}
           />
         )}
 

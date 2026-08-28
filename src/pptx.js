@@ -120,9 +120,14 @@ function corSolida(valor, reserva = '2A78D6') {
 
 // Contraste relativo (WCAG) entre duas cores hex de 6 dígitos.
 function luminancia(hex) {
+  // Aceita '#abc123' ou 'abc123'; qualquer coisa inválida vira cinza médio, para
+  // que corDoRotulo() nunca quebre com uma cor ausente (o cru já é defensivo, mas
+  // este é o ponto único por onde toda cor passa antes de virar contraste).
+  const s = String(hex ?? '').replace('#', '').padEnd(6, '0').slice(0, 6)
   const c = [0, 2, 4].map((i) => {
-    const v = parseInt(hex.slice(i, i + 2), 16) / 255
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+    const v = parseInt(s.slice(i, i + 2), 16) / 255
+    const w = Number.isFinite(v) ? v : 0.5
+    return w <= 0.03928 ? w / 12.92 : ((w + 0.055) / 1.055) ** 2.4
   })
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
 }
@@ -306,6 +311,12 @@ function envelope(interno) {
 // com 4 casas) — tudo menos a maior fatia virava zero e a rosca saía com uma
 // única fatia de 100%.
 function graficoRosca(itens, { escala = 1e6, nomeSerie = 'Valor (R$ milhões)' } = {}) {
+  // Recorte vazio → 0 fatias geraria faixa invertida `$A$2:$A$1` e ptCount=0,
+  // que o PowerPoint acusa como arquivo corrompido. Uma fatia-placeholder mantém
+  // o pacote válido (mesma rede de segurança de graficoBarras).
+  if (!Array.isArray(itens) || itens.length === 0) {
+    itens = [{ rotulo: '(sem dados no recorte selecionado)', valor: 0, cor: 'B3B3AD' }]
+  }
   const cats = itens.map((d) => d.rotulo)
   const vals = itens.map((d) => d.valor / escala)
   const cores = itens.map((d) => d.cor)
@@ -342,11 +353,52 @@ function graficoBarras({
   vertical = false, formato = FMT_MI, tendencia = false,
   rotulos = true, apagarAbaixo = 0,
 }) {
+  // Robustez do pacote: nunca emitir um gráfico corrompido. Três defeitos de
+  // dado quebravam o .pptx com "documento precisa de reparo" no PowerPoint:
+  //   (a) recorte vazio → 0 categorias → faixa invertida `$B$2:$B$1` e ptCount=0;
+  //   (b) série com comprimento diferente do nº de categorias → cat≠val;
+  //   (c) valor não-finito (undefined/NaN) → `<c:v>NaN</c:v>` no cache numérico.
+  // Como os agregadores da tela normalizam a maioria disso, o guarda aqui é a
+  // rede de segurança única para qualquer painel — inclusive um recorte que o
+  // usuário filtre até esvaziar.
+  cats = Array.isArray(cats) ? cats.slice() : []
+  series = Array.isArray(series) ? series.map((s) => ({ ...s })) : []
+  if (cats.length === 0 || series.length === 0) {
+    cats = ['(sem dados no recorte selecionado)']
+    series = [{ nome: ' ', cor: 'B3B3AD', valores: [0] }]
+    cores = null
+    legenda = false
+    rotulos = false
+    // Um placeholder de recorte vazio nunca é empilhado: assim o rótulo interno
+    // (que mediria o contraste sobre a cor do segmento) não é sequer calculado.
+    empilhado = false
+    proporcao = false
+  }
+  if (Array.isArray(cores)) cores = cores.slice(0, cats.length)
+  // alinha cada série ao nº de categorias e força número finito em cada ponto
+  series = series.map((s) => ({
+    ...s,
+    valores: cats.map((_, j) => {
+      const v = Number(s.valores?.[j])
+      return Number.isFinite(v) ? v : 0
+    }),
+  }))
   const ax1 = 111111111
   const ax2 = 222222222
   const empilha = empilhado || proporcao
   // `outEnd` só é legal em barra agrupada; empilhada exige `ctr`.
   const posRotulo = empilha ? 'ctr' : 'outEnd'
+  // Cor de preenchimento da SÉRIE. Nos gráficos coloridos por coluna (Força, RP)
+  // a série não traz `.cor` — a cor vive em `cores`, aplicada ponto a ponto —, e
+  // sem este resguardo saía `val="undefined"`, que faz o PowerPoint acusar
+  // arquivo corrompido. Preserva qualquer hex de 6 dígitos e só recorre à
+  // reserva (a 1ª cor da paleta, ou o azul padrão) quando a série não tem cor.
+  const corSerie = (c, alt) => {
+    const s = String(c ?? '').replace('#', '')
+    if (/^[0-9a-f]{6}$/i.test(s)) return s.toUpperCase()
+    const a = String(alt ?? '').replace('#', '')
+    return /^[0-9a-f]{6}$/i.test(a) ? a.toUpperCase() : '2A78D6'
+  }
   // Totais por categoria, para poder apagar o rótulo de fatias minúsculas.
   const totalCat = cats.map((_, j) => series.reduce((s, x) => s + (x.valores[j] || 0), 0))
 
@@ -375,14 +427,14 @@ function graficoBarras({
         .join('')
       const reta = tendencia
         ? '<c:trendline><c:spPr><a:ln w="22225" cap="rnd">' +
-          `<a:solidFill><a:srgbClr val="${s.cor}"/></a:solidFill>` +
+          `<a:solidFill><a:srgbClr val="${corSerie(s.cor, cores && cores[0])}"/></a:solidFill>` +
           '<a:prstDash val="dash"/></a:ln></c:spPr>' +
           '<c:trendlineType val="linear"/>' +
           '<c:dispRSqr val="0"/><c:dispEq val="0"/></c:trendline>'
         : ''
       return (
         `<c:ser><c:idx val="${i}"/><c:order val="${i}"/>` + refNome(s.nome, col) +
-        `<c:spPr><a:solidFill><a:srgbClr val="${s.cor}"/></a:solidFill>` +
+        `<c:spPr><a:solidFill><a:srgbClr val="${corSerie(s.cor, cores && cores[0])}"/></a:solidFill>` +
         '<a:ln w="19050"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln></c:spPr>' +
         '<c:invertIfNegative val="0"/>' + pinta +
         dLbls(apagados, empilha ? corDoRotulo(s.cor) : TINTA_2) + reta +
@@ -728,9 +780,9 @@ function paginarPainel(o) {
   // Barras: fatiar categorias e os valores de cada série em paralelo. O painel
   // anexa `paginavel = { cats, series, construir }` — `construir(cats, series)`
   // devolve um novo `{ grafico, planilha }` para o bloco.
-  if (o.paginavel && o.paginavel.cats.length > MAX_BARRAS) {
+  if (o.paginavel && o.paginavel.cats.length > (o.paginavel.porBloco ?? MAX_BARRAS)) {
     const { cats, series, construir } = o.paginavel
-    const blocosCats = emBlocos(cats, MAX_BARRAS)
+    const blocosCats = emBlocos(cats, o.paginavel.porBloco ?? MAX_BARRAS)
     let base = 0
     return blocosCats.map((fatiaCats, i) => {
       const ini = base
@@ -1236,9 +1288,10 @@ function paineisPLOA(d) {
         cats: catsAcao, series: parPLAutografo(acoes), legenda: true, formato: FMT_BI,
       }),
       planilha: planilha(catsAcao, parPLAutografo(acoes)),
-      // ~65 ações → o slide único ficaria ilegível; pagina em blocos.
+      // Muitas ações → o slide único ficaria ilegível. Pedido do usuário: no
+      // máximo 10 ações por slide (o par PL/Autógrafo dá 20 barras por quadro).
       paginavel: {
-        cats: catsAcao, series: parPLAutografo(acoes),
+        cats: catsAcao, series: parPLAutografo(acoes), porBloco: 10,
         construir: (cats, series) => ({
           grafico: graficoBarras({ cats, series, legenda: true, formato: FMT_BI }),
           planilha: planilha(cats, series),

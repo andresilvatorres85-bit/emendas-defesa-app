@@ -36,7 +36,7 @@ function AvisoDuplicado({ duplicados, anosEmTela }) {
 
 export default function AbaPLOA({
   registros, registrosTodasForcas, anos, fasesVazias = {}, duplicados = [],
-  contexto, onExportarSlide, orgaosTexto = '', exercicioTexto = '',
+  contexto, onExportarSlide, filtrosTexto = '',
 }) {
   const todasForcas = registrosTodasForcas ?? registros
   const agregados = useMemo(() => porAgregado(todasForcas), [todasForcas])
@@ -393,8 +393,7 @@ export default function AbaPLOA({
       {/* Só aparece na impressão via botão "Exportar PDF" (ver styles.css). */}
       <div className="folha-pdf" aria-hidden>
         <FolhaDashboardPLOA
-          orgaosTexto={orgaosTexto}
-          exercicioTexto={exercicioTexto}
+          filtrosTexto={filtrosTexto}
           rps={rps}
           gnds={gnds}
           uos={uos}
