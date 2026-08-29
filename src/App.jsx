@@ -27,6 +27,7 @@ import {
   gndPorAno as ploaGndPorAno,
   acaoPorAno as ploaAcaoPorAno,
   ciclosPorAno as ploaCiclosPorAno,
+  autografoIndisponivel as ploaAutografoIndisponivel,
   IDX_PL, IDX_AUTOGRAFO, fmtBi, FASE_ROTULOS,
 } from './ploa.js'
 import { useUrlState } from './useUrlState.js'
@@ -288,6 +289,10 @@ export default function App() {
     .filter((f) => f.id !== 'ano' && filtros[f.id]?.size > 0)
     .map((f) => `${f.rotulo}: ${[...filtros[f.id]].join(', ')}`)
   const anosPloaEmTela = [...new Set(ploaFiltrados.map((r) => r.ano))].sort()
+  // Início do rito: o(s) exercício(s) em tela ainda não têm autógrafo na
+  // planilha. Vale para o Dashboard (respeita o Ano). Consolida os painéis e as
+  // exportações pelo PL e exibe o autógrafo em branco.
+  const semAutPLOA = ploaAutografoIndisponivel(ploa.fasesVazias ?? {}, anosPloaEmTela)
   const anoTextoPLOA = anosPloaEmTela.length
     ? `Exercício ${anosPloaEmTela.join(', ')}`
     : `Todos os exercícios (${(ploa.anos ?? []).join(', ')})`
@@ -320,8 +325,11 @@ export default function App() {
   const totaisPLOA = ploaSomaFases(ploaFiltrados)
   const contextoPLOA =
     `PLOA — despesas por fase de elaboração — ${escopoPLOA}. ${recortePLOA}. ` +
-    `${fmtInt(ploaFiltrados.length)} dotações · autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}. ` +
-    `Extraído em ${new Date().toLocaleString('pt-BR')}.`
+    `${fmtInt(ploaFiltrados.length)} dotações · ` +
+    (semAutPLOA
+      ? `PL ${fmtBi(totaisPLOA[IDX_PL])} (autógrafo ainda não na planilha)`
+      : `autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}`) +
+    `. Extraído em ${new Date().toLocaleString('pt-BR')}.`
   const contextoHistPLOA =
     `PLOA — despesas por fase de elaboração — ${escopoPLOA}. ${recorteHistPLOA}. ` +
     `${fmtInt(ploaSemAno.length)} dotações. ` +
@@ -339,9 +347,14 @@ export default function App() {
     // A capa e os cartões servem às duas bases: quem monta a carga escreve a
     // linha-resumo, porque só aqui se sabe se a unidade é "emendas" ou "dotações".
     linhaResumo:
-      `${fmtInt(ploaFiltrados.length)} dotações · autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}`,
+      `${fmtInt(ploaFiltrados.length)} dotações · ` +
+      (semAutPLOA
+        ? `PL ${fmtBi(totaisPLOA[IDX_PL])} (autógrafo ainda não na planilha)`
+        : `autógrafo ${fmtBi(totaisPLOA[IDX_AUTOGRAFO])}`),
     fases: FASE_ROTULOS,
     qtdDotacoes: ploaFiltrados.length,
+    // Início do rito: o PPTX consolida pelo PL e omite o autógrafo (ver pptx.js).
+    semAut: semAutPLOA,
     totalPL: totaisPLOA[IDX_PL],
     totalAutografo: totaisPLOA[IDX_AUTOGRAFO],
     agregados: ploaPorAgregado(ploaSemOrgao),

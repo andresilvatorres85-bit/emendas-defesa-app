@@ -1166,7 +1166,13 @@ const COR_GND_PPTX = {
 }
 
 function paineisPLOA(d) {
-  const rp = d.rps.filter((x) => x.valor > 0)
+  // Início do rito: a planilha do exercício ainda não traz o autógrafo. Os
+  // painéis são consolidados pelo PL e o autógrafo é omitido (não vira uma
+  // segunda série zerada nem um total R$ 0,00). Espelha a tela e o PDF.
+  const semAut = !!d.semAut
+  // O RP passou a ser lido pelo PL (a cascata da tela mostra o PL): filtrar por
+  // autógrafo apagaria todos os RP no início do rito, quando o autógrafo é 0.
+  const rp = d.rps.filter((x) => (x.pl || 0) > 0)
     .map((x) => ({ ...x, cor: corSolida(corDoRP(x.rp)) }))
 
   const catsForca = d.agregados.map((a) => a.rotulo)
@@ -1178,11 +1184,14 @@ function paineisPLOA(d) {
   const catsGND = d.gnds.map((g) => `GND ${g.gnd}${g.nome ? ` — ${g.nome}` : ''}`)
   // Par PL/Autógrafo, repetido em vários painéis: é a comparação que esta base
   // existe para mostrar. Em UO e Ação a barra pedida é o PL (o autógrafo entra
-  // como segunda série); a ordem aqui deixa o PL como primeira série.
-  const parPLAutografo = (itens) => [
-    { nome: 'PL', cor: AZUL, valores: itens.map((x) => bi(x.pl)) },
-    { nome: 'Autógrafo', cor: LARANJA, valores: itens.map((x) => bi(x.valor ?? x.autografo)) },
-  ]
+  // como segunda série); a ordem aqui deixa o PL como primeira série. No início
+  // do rito o autógrafo some e resta só a série do PL.
+  const parPLAutografo = (itens) => semAut
+    ? [{ nome: 'PL', cor: AZUL, valores: itens.map((x) => bi(x.pl)) }]
+    : [
+        { nome: 'PL', cor: AZUL, valores: itens.map((x) => bi(x.pl)) },
+        { nome: 'Autógrafo', cor: LARANJA, valores: itens.map((x) => bi(x.valor ?? x.autografo)) },
+      ]
 
   return [
     {
@@ -1204,8 +1213,10 @@ function paineisPLOA(d) {
     {
       id: 'ploa-uo',
       titulo: 'Valor por Unidade Orçamentária',
-      sub: 'Todas as UO do órgão 52000 · comparação entre o PL e o autógrafo',
-      total: fmtBiTxt(d.uos.reduce((s, u) => s + u.valor, 0)),
+      sub: semAut
+        ? 'Todas as UO do órgão 52000 · valor no PL (autógrafo ainda não na planilha)'
+        : 'Todas as UO do órgão 52000 · barra = PL, traço = autógrafo',
+      total: fmtBiTxt(d.totalPL),
       grafico: graficoBarras({
         cats: catsUO, series: parPLAutografo(d.uos), legenda: true, formato: FMT_BI,
       }),
@@ -1222,18 +1233,19 @@ function paineisPLOA(d) {
     {
       id: 'ploa-rp',
       titulo: 'Por Identificador de Resultado Primário',
-      sub: 'Composição do autógrafo por RP · RP6 e RP7 são as emendas impositivas',
-      total: fmtBiTxt(d.totalAutografo),
+      sub: 'Composição do PL por RP · RP6 e RP7 são as emendas impositivas',
+      total: fmtBiTxt(d.totalPL),
       // Colunas por RP, uma cor por RP: a altura de cada coluna dá a leitura de
-      // tamanho que a cascata da tela oferece, e sai como gráfico nativo.
+      // tamanho que a cascata da tela oferece, e sai como gráfico nativo. O
+      // valor é o do PL (a cascata da tela também).
       grafico: graficoBarras({
         cats: rp.map((x) => x.rotulo),
-        series: [{ nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => bi(x.valor)) }],
+        series: [{ nome: 'PL (R$ bilhões)', valores: rp.map((x) => bi(x.pl)) }],
         cores: rp.map((x) => corSolida(corDoRP(x.rp))),
         vertical: true, formato: FMT_BI,
       }),
       planilha: planilha(rp.map((x) => x.rotulo), [
-        { nome: 'Autógrafo (R$ bilhões)', valores: rp.map((x) => bi(x.valor)) },
+        { nome: 'PL (R$ bilhões)', valores: rp.map((x) => bi(x.pl)) },
       ]),
     },
     {
@@ -1242,7 +1254,8 @@ function paineisPLOA(d) {
       sub: 'Valor de cada Força em cada fase: PL · Ciclo Setorial · Ciclo Geral · Ciclo Plenário · Autógrafo',
       // Total das QUATRO Forças: este painel ignora o filtro de Órgão, e
       // carimbar aqui o total do recorte filtrado contradiria o próprio gráfico.
-      total: fmtBiTxt(d.ciclos.reduce((s, a) => s + a.fases[a.fases.length - 1], 0)),
+      // No início do rito a última fase (autógrafo) é 0, então o total soma o PL.
+      total: fmtBiTxt(d.ciclos.reduce((s, a) => s + a.fases[semAut ? 0 : a.fases.length - 1], 0)),
       recorte: d.recorteForca,
       // Colunas verticais: as fases são uma sequência ordenada e vão no eixo,
       // como o ano nos painéis do Histórico.
@@ -1260,30 +1273,38 @@ function paineisPLOA(d) {
     {
       id: 'ploa-pl-autografo',
       titulo: 'Do PL ao Autógrafo',
-      sub: 'Saldo líquido do rito legislativo por Força',
-      total: (() => {
+      sub: semAut
+        ? 'Saldo líquido do rito legislativo por Força · autógrafo ainda não na planilha'
+        : 'Saldo líquido do rito legislativo por Força',
+      total: semAut ? '—' : (() => {
         const s = d.plAutografo.reduce((t2, a) => t2 + (a.autografo - a.pl), 0)
         return `${s >= 0 ? '+' : '−'} ${fmtBiTxt(Math.abs(s))}`
       })(),
       recorte: d.recorteForca,
       grafico: graficoBarras({
         cats: d.plAutografo.map((a) => a.rotulo),
-        series: [
-          { nome: 'PL', cor: AZUL, valores: d.plAutografo.map((a) => bi(a.pl)) },
-          { nome: 'Autógrafo', cor: LARANJA, valores: d.plAutografo.map((a) => bi(a.autografo)) },
-        ],
+        series: semAut
+          ? [{ nome: 'PL', cor: AZUL, valores: d.plAutografo.map((a) => bi(a.pl)) }]
+          : [
+              { nome: 'PL', cor: AZUL, valores: d.plAutografo.map((a) => bi(a.pl)) },
+              { nome: 'Autógrafo', cor: LARANJA, valores: d.plAutografo.map((a) => bi(a.autografo)) },
+            ],
         vertical: true, legenda: true, formato: FMT_BI,
       }),
-      planilha: planilha(d.plAutografo.map((a) => a.rotulo), [
-        { nome: 'PL', valores: d.plAutografo.map((a) => bi(a.pl)) },
-        { nome: 'Autógrafo', valores: d.plAutografo.map((a) => bi(a.autografo)) },
-      ]),
+      planilha: planilha(d.plAutografo.map((a) => a.rotulo), semAut
+        ? [{ nome: 'PL', valores: d.plAutografo.map((a) => bi(a.pl)) }]
+        : [
+            { nome: 'PL', valores: d.plAutografo.map((a) => bi(a.pl)) },
+            { nome: 'Autógrafo', valores: d.plAutografo.map((a) => bi(a.autografo)) },
+          ]),
     },
     {
       id: 'ploa-acao',
       titulo: 'Valor por Ação orçamentária',
-      sub: 'Todas as ações do recorte · comparação entre o PL e o autógrafo',
-      total: fmtBiTxt(acoes.reduce((s, a) => s + a.valor, 0)),
+      sub: semAut
+        ? 'Todas as ações do recorte · valor no PL (autógrafo ainda não na planilha)'
+        : 'Todas as ações do recorte · barra = PL, traço = autógrafo',
+      total: fmtBiTxt(d.totalPL),
       grafico: graficoBarras({
         cats: catsAcao, series: parPLAutografo(acoes), legenda: true, formato: FMT_BI,
       }),
@@ -1301,8 +1322,10 @@ function paineisPLOA(d) {
     {
       id: 'ploa-gnd',
       titulo: 'Valor por Grupo de Natureza da Despesa',
-      sub: 'Composição do autógrafo por GND · comparação entre o PL e o autógrafo',
-      total: fmtBiTxt(d.gnds.reduce((s, g) => s + g.valor, 0)),
+      sub: semAut
+        ? 'Composição do PL por GND · valor no PL (autógrafo ainda não na planilha)'
+        : 'Composição do PL por GND · barra = PL, traço = autógrafo',
+      total: fmtBiTxt(d.totalPL),
       grafico: graficoBarras({
         cats: catsGND, series: parPLAutografo(d.gnds), legenda: true, formato: FMT_BI,
       }),
@@ -1454,9 +1477,13 @@ function paineisHistoricoPLOA(d) {
 }
 
 // Cartões de abertura da seção PLOA: as pontas do rito e o tamanho do recorte.
+// O PL é o cartão-herói (a leitura primária desta análise, e o único valor
+// presente no início do rito); o autógrafo e o saldo saem em branco enquanto a
+// planilha do exercício não os traz. Espelha a tela.
 function slideCardsPLOA(d) {
-  const heroi = fmtCompacto(d.totalAutografo)
-  const pl = fmtCompacto(d.totalPL)
+  const semAut = !!d.semAut
+  const heroi = fmtCompacto(d.totalPL)
+  const aut = fmtCompacto(d.totalAutografo)
   const delta = d.totalAutografo - d.totalPL
   const dc = fmtCompacto(Math.abs(delta))
   const pct = d.totalPL ? (delta / d.totalPL) * 100 : 0
@@ -1471,20 +1498,21 @@ function slideCardsPLOA(d) {
     }),
     cartao(4, {
       x: 1.6, y: 4.2, w: 15.2, h: 12.4, algn: 'ctr', sz: 5400,
-      rotulo: 'Autógrafo — valor final',
+      rotulo: 'PL do Executivo',
       valor: `R$ ${heroi.valor} ${heroi.unidade}`.trim(),
-      nota: `${fmtBiTxt(d.totalAutografo)} · ${fmtInt(d.qtdDotacoes)} dotações`,
+      nota: `${fmtBiTxt(d.totalPL)} · ${fmtInt(d.qtdDotacoes)} dotações`,
     }),
     cartao(5, {
       x: 17.6, y: 4.2, w: 14.6, h: 3.8, algn: 'l',
-      rotulo: 'PL do Executivo', valor: `R$ ${pl.valor} ${pl.unidade}`.trim(),
-      nota: 'Ponto de partida do rito',
+      rotulo: 'Autógrafo — valor final',
+      valor: semAut ? '—' : `R$ ${aut.valor} ${aut.unidade}`.trim(),
+      nota: semAut ? 'Ainda não disponível na planilha' : `${fmtBiTxt(d.totalAutografo)} · fim do rito`,
     }),
     cartao(6, {
       x: 17.6, y: 8.5, w: 14.6, h: 3.8, algn: 'l',
       rotulo: 'Saldo do rito',
-      valor: `${delta >= 0 ? '+' : '−'} R$ ${dc.valor} ${dc.unidade}`.trim(),
-      nota: `PL → autógrafo · ${delta >= 0 ? '+' : '−'}${fmtPct(Math.abs(pct))}`,
+      valor: semAut ? '—' : `${delta >= 0 ? '+' : '−'} R$ ${dc.valor} ${dc.unidade}`.trim(),
+      nota: semAut ? 'PL → autógrafo · —' : `PL → autógrafo · ${delta >= 0 ? '+' : '−'}${fmtPct(Math.abs(pct))}`,
     }),
     cartao(7, {
       x: 17.6, y: 12.8, w: 14.6, h: 3.8, algn: 'l',

@@ -851,16 +851,20 @@ def normalizar(registro, idx, descartadas, uos_nao_catalogadas=None, om_objeto=N
 # da aba PLOA é "quanto foi para o Ministério da Defesa", e parte das UO do
 # órgão (a ALADA, por exemplo) responde pelo setor de Ciência & Tecnologia.
 #
-# 3.A — Fase ausente herda a fase anterior.
-#   A planilha não preenche a mesma sequência de colunas em todos os anos:
-#   2022 pára no Ciclo Plenário (Autógrafo zerado) e 2023 pula o Ciclo Plenário
-#   (o valor final está no Autógrafo). A ausência é do ANO, não da linha — um
-#   zero numa linha isolada é um zero de verdade (dotação criada só no Ciclo
-#   Geral começa com PL = 0, e isso é informação). Por isso a detecção é feita
-#   por COLUNA: fase cuja coluna inexiste, ou soma zero no ano inteiro, é
-#   considerada ausente e recebe o valor da fase anterior. O JSON guarda os
-#   valores crus (`fases`) e os já herdados (`fasesEf`), mais a lista de fases
-#   ausentes por ano — assim a tela pode dizer que o número foi repetido.
+# 3.A — Fase ausente fica EM BRANCO (não herda a fase anterior).
+#   A planilha não preenche a mesma sequência de colunas em todos os anos: no
+#   início do rito o exercício corrente só tem o PL, 2022 pára no Ciclo Plenário
+#   (Autógrafo ausente) e 2023 pula o Ciclo Plenário. A ausência é do ANO, não da
+#   linha — um zero numa linha isolada é um zero de verdade (dotação criada só no
+#   Ciclo Geral começa com PL = 0, e isso é informação). Por isso a detecção é
+#   feita por COLUNA: fase cuja coluna inexiste, ou soma zero no ano inteiro, é
+#   considerada ausente e recebe `null` (branco). Herdar o valor da fase anterior
+#   afirmaria um dado que a planilha ainda não tem; deixar em branco é honesto e é
+#   o que a análise "desde o início do rito" pede — a leitura primária dos painéis
+#   passou a ser o PL, sempre presente, e o autógrafo entra só quando existe. O
+#   JSON guarda os valores crus (`fases`) e os efetivos com branco (`fasesEf`),
+#   mais a lista de fases ausentes por ano (`fasesVazias`) — assim a tela sabe
+#   quais fases exibir em branco.
 #
 # 3.B — Anos com conteúdo idêntico são sinalizados, não removidos.
 #   Hoje a aba 2025 é cópia bit a bit da 2024 (mesmas 669 linhas, mesmos cinco
@@ -1014,12 +1018,14 @@ def ler_ploa(caminho_xlsx, uos_nao_catalogadas=None):
             for i in range(len(FASES)):
                 bruto = r["fases"][i]
                 if i in indices_vazios and i > 0:
-                    efetivas.append(efetivas[i - 1])
+                    # REGRA 3.A — fase ausente fica em branco (não herda). O PL
+                    # (i == 0) nunca é apagado: é o valor de partida do rito.
+                    efetivas.append(None)
                 else:
                     efetivas.append(bruto)
             r["fasesEf"] = efetivas
         print(f"  PLOA aba {ano}: {len(do_ano)} linhas do órgão {ORGAO_COD}"
-              + (f" | fase(s) sem valor, herdadas da anterior: "
+              + (f" | fase(s) sem valor na planilha, exibidas em branco: "
                  f"{', '.join(FASE_ROTULOS[f] for f in vazias)}" if vazias else ""))
         registros.extend(do_ano)
     wb.close()
@@ -1137,7 +1143,7 @@ def main():
     # Enxuga o JSON: 3.300 dotações × 25 campos pesam num app que também carrega
     # 4.600 registros de emenda. Campo vazio não vai, `gndNome` sai (há a tabela
     # `gndNomes` no cabeçalho do bloco) e `fases` só é emitido quando difere de
-    # `fasesEf` — ou seja, apenas nos anos em que alguma fase foi herdada.
+    # `fasesEf` — ou seja, apenas nos anos em que alguma fase ficou em branco.
     for r in ploa_registros:
         r.pop("gndNome", None)
         if r["fases"] == r["fasesEf"]:
@@ -1145,12 +1151,15 @@ def main():
         for chave in [k for k, v in r.items() if v == ""]:
             del r[chave]
     if ploa_registros:
-        print("\nPLOA por ano (valor da última fase preenchida):")
+        print("\nPLOA por ano (PL e autógrafo; autógrafo em branco = ainda não na planilha):")
         for ano in ploa_anos:
             do_ano = [r for r in ploa_registros if r["ano"] == ano]
-            final = sum(r["fasesEf"][-1] for r in do_ano)
-            pl = sum(r["fasesEf"][0] for r in do_ano)
-            print(f"  {ano}: {len(do_ano)} linhas | PL R$ {pl:,.2f} | autógrafo R$ {final:,.2f}")
+            # fasesEf pode conter None (fase em branco): soma protegida.
+            final = sum((r["fasesEf"][-1] or 0) for r in do_ano)
+            pl = sum((r["fasesEf"][0] or 0) for r in do_ano)
+            sem_aut = "autografo" in ploa_fases_vazias.get(ano, [])
+            print(f"  {ano}: {len(do_ano)} linhas | PL R$ {pl:,.2f} | "
+                  + ("autógrafo em branco" if sem_aut else f"autógrafo R$ {final:,.2f}"))
     for d in ploa_duplicados:
         print(f"  AVISO: a aba {d['ano']} é idêntica à aba {d['igualA']} "
               f"({d['linhas']} linhas iguais) — sinalizado no app, não removido")

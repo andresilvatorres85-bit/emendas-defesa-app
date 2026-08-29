@@ -23,8 +23,29 @@ export const FASES = [
   { id: 'autografo', rotulo: 'Autógrafo', descricao: 'Texto final encaminhado à sanção' },
 ]
 export const FASE_ROTULOS = FASES.map((f) => f.rotulo)
+export const FASE_IDS = FASES.map((f) => f.id)
 export const IDX_PL = 0
 export const IDX_AUTOGRAFO = FASES.length - 1
+
+// Fases sem valor próprio na planilha para o recorte em tela. A ausência é da
+// COLUNA no ANO (REGRA 3.A do pipeline): `fasesVazias` mapeia ano → ids de fase
+// cuja coluna inexiste ou soma zero no ano inteiro. Uma fase só é dada como
+// indisponível quando NENHUM exercício em tela a preencheu — assim, com vários
+// anos em foco, basta um deles ter o autógrafo para o comparativo voltar.
+// No início do rito do PLOA o exercício corrente só tem o PL, então os ciclos e
+// o autógrafo caem todos aqui e são exibidos em branco em vez de herdados.
+export function fasesIndisponiveis(fasesVazias, anos) {
+  if (!anos || !anos.length) return new Set()
+  return new Set(
+    FASE_IDS.filter((id) => anos.every((a) => (fasesVazias?.[a] || []).includes(id)))
+  )
+}
+export const autografoIndisponivel = (fasesVazias, anos) =>
+  fasesIndisponiveis(fasesVazias, anos).has('autografo')
+// Índices (não ids) das fases indisponíveis — conveniência para a tabela do
+// ciclo, que percorre `fases` por posição.
+export const idxFasesIndisponiveis = (fasesVazias, anos) =>
+  new Set([...fasesIndisponiveis(fasesVazias, anos)].map((id) => FASE_IDS.indexOf(id)))
 
 // Os quatro agregados do comparativo por Força. A ordem é fixa (e não por
 // valor) porque estes quatro painéis são lidos lado a lado: a posição de cada
@@ -140,7 +161,11 @@ export function porUO(registros, fase = IDX_AUTOGRAFO) {
     alvo.valor += fasesDe(r)[fase] || 0
     alvo.pl += valorPL(r)
   }
-  return [...mapa.values()].filter((u) => u.valor || u.pl).sort((a, b) => b.valor - a.valor)
+  // Ordena por autógrafo; o PL desempata. No início do rito o autógrafo é 0 em
+  // todas as UO (fica em branco na planilha), então sem o desempate as barras
+  // sairiam na ordem de inserção — o PL as recoloca em "maior → menor".
+  return [...mapa.values()].filter((u) => u.valor || u.pl)
+    .sort((a, b) => (b.valor - a.valor) || (b.pl - a.pl))
 }
 
 // 3) Por RP. Ordem NUMÉRICA do código, não por valor: o RP é uma escala
@@ -191,7 +216,8 @@ export function porAcao(registros, n = 15, fase = IDX_AUTOGRAFO) {
     alvo.valor += fasesDe(r)[fase] || 0
     alvo.pl += valorPL(r)
   }
-  const todas = [...mapa.values()].filter((a) => a.valor || a.pl).sort((a, b) => b.valor - a.valor)
+  const todas = [...mapa.values()].filter((a) => a.valor || a.pl)
+    .sort((a, b) => (b.valor - a.valor) || (b.pl - a.pl))
   if (todas.length <= n) return { itens: todas, resto: null, total: todas.length }
   const resto = todas.slice(n)
   return {
@@ -218,7 +244,10 @@ export function acoesOrdenadas(registros, fase = IDX_AUTOGRAFO) {
     alvo.valor += fasesDe(r)[fase] || 0
     alvo.pl += valorPL(r)
   }
-  return [...mapa.values()].filter((a) => a.valor || a.pl).sort((a, b) => b.valor - a.valor)
+  // Autógrafo primeiro, PL no desempate — ver `porUO` (a ordem não pode ruir
+  // quando o autógrafo ainda não veio na planilha).
+  return [...mapa.values()].filter((a) => a.valor || a.pl)
+    .sort((a, b) => (b.valor - a.valor) || (b.pl - a.pl))
 }
 
 // 7) Por GND. Poucas categorias, escala conhecida — ordem numérica do código,

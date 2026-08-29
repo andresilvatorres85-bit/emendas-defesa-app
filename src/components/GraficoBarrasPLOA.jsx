@@ -28,6 +28,11 @@ export default function GraficoBarrasPLOA({
   limite = null,
   passoExpansao = 15,
   mostrarPercentual = false, // exibe, ao lado do valor, a fatia da categoria no total
+  // Autógrafo ainda não disponível na planilha (início do rito): a barra mostra
+  // só o PL, o traço do autógrafo some e a linha de comparação de cada item sai
+  // em branco em vez de fingir uma variação de −100% contra um valor que não
+  // existe. Só faz sentido com `barra="pl"`.
+  semAutografo = false,
 }) {
   const [hover, setHover] = useState(null)
   const [mostrar, setMostrar] = useState(limite ?? dados.length)
@@ -99,7 +104,7 @@ export default function GraficoBarrasPLOA({
                   style={{ width: `${(vBarra / max) * 100}%`, background: d.cor || corPadrao }}
                   title={`${rotuloBarra}: ${formatar(vBarra)}`}
                 />
-                {comparar && vTraco > 0 && (
+                {comparar && !semAutografo && vTraco > 0 && (
                   <span
                     className="pbar-marca-pl"
                     style={{ left: `${(vTraco / max) * 100}%` }}
@@ -111,12 +116,18 @@ export default function GraficoBarrasPLOA({
 
               {comparar && (
                 <p className="pbar-nota">
-                  <span className="pbar-nota-pl">
-                    {barraEhPL ? `Autógrafo ${formatar(autografo)}` : `PL ${formatar(pl)}`}
-                  </span>
-                  <span className={pct === null ? 'var-nula' : pct >= 0 ? 'var-sobe' : 'var-desce'}>
-                    {pct === null ? 'sem valor no PL' : `${pct >= 0 ? '▲' : '▼'} ${fmtVar(pct)}`}
-                  </span>
+                  {semAutografo ? (
+                    <span className="pbar-nota-pl var-nula">Autógrafo — (ainda não na planilha)</span>
+                  ) : (
+                    <>
+                      <span className="pbar-nota-pl">
+                        {barraEhPL ? `Autógrafo ${formatar(autografo)}` : `PL ${formatar(pl)}`}
+                      </span>
+                      <span className={pct === null ? 'var-nula' : pct >= 0 ? 'var-sobe' : 'var-desce'}>
+                        {pct === null ? 'sem valor no PL' : `${pct >= 0 ? '▲' : '▼'} ${fmtVar(pct)}`}
+                      </span>
+                    </>
+                  )}
                 </p>
               )}
             </li>
@@ -145,10 +156,12 @@ export default function GraficoBarrasPLOA({
             <span className="legenda-cor" style={{ background: corPadrao }} aria-hidden />
             Barra: {rotuloBarra}
           </span>
-          <span className="barras-legenda-item">
-            <span className="legenda-marca-pl" aria-hidden />
-            Traço: {rotuloTraco}
-          </span>
+          {!semAutografo && (
+            <span className="barras-legenda-item">
+              <span className="legenda-marca-pl" aria-hidden />
+              Traço: {rotuloTraco}
+            </span>
+          )}
         </figcaption>
       )}
     </figure>

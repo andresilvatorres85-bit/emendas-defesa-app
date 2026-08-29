@@ -58,7 +58,7 @@ function CardPDF({ titulo, sub, total, fluido = false, children }) {
 export function FolhaDashboardPLOA({
   filtrosTexto,
   rps, gnds, uos, acoes, agregados, plAut, ciclo,
-  totalPL, totalAutografo, dotacoes, anosEmTela,
+  totalPL, totalAutografo, semAut = false, dotacoes, anosEmTela,
 }) {
   const heroi = fmtCompacto(totalPL)
   const autografo = fmtCompacto(totalAutografo)
@@ -66,19 +66,22 @@ export function FolhaDashboardPLOA({
   const pctRito = variacao(totalPL, totalAutografo)
   const compacto = fmtCompacto(Math.abs(deltaRito))
 
-  const totalGND = gnds.reduce((s, g) => s + g.valor, 0)
-  const totalUO = uos.reduce((s, u) => s + u.valor, 0)
+  // No início do rito (autógrafo ainda não na planilha) todos os painéis do
+  // Dashboard passam a ser consolidados pelo PL: os totais de topo somam o PL e
+  // o autógrafo/saldo saem em branco. `totalPL` já é a soma do PL do recorte.
   const totalPLForcas = agregados.reduce((s, a) => s + a.pl, 0)
   const totalTodasForcas = agregados.reduce((s, a) => s + a.valor, 0)
-  const plTodasForcas = agregados.reduce((s, a) => s + a.pl, 0)
+  const plTodasForcas = totalPLForcas
   const deltaTodasForcas = totalTodasForcas - plTodasForcas
 
   const catsForca = plAut.map((a) => a.rotulo)
   const coresForca = plAut.map((a) => a.cor)
-  const seriePLAut = [
-    { chave: 'pl', rotulo: 'PL', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.pl) },
-    { chave: 'aut', rotulo: 'Autógrafo', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.autografo) },
-  ]
+  const seriePLAut = semAut
+    ? [{ chave: 'pl', rotulo: 'PL', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.pl) }]
+    : [
+        { chave: 'pl', rotulo: 'PL', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.pl) },
+        { chave: 'aut', rotulo: 'Autógrafo', cor: 'var(--tinta-3)', valores: plAut.map((a) => a.autografo) },
+      ]
   const serieCiclo = ciclo.map((a) => ({
     chave: a.id, rotulo: a.rotulo, cor: a.cor, valores: a.fases,
   }))
@@ -106,21 +109,39 @@ export function FolhaDashboardPLOA({
           </section>
           <section className="pdf-mini">
             <p className="pdf-mini-rot">Valor final aprovado</p>
-            <p className="pdf-mini-val">
-              R$ {autografo.valor}
-              {autografo.unidade && <span className="pdf-mini-un">{autografo.unidade}</span>}
-            </p>
-            <p className="pdf-mini-nota">Autógrafo — fim do rito</p>
+            {semAut ? (
+              <>
+                <p className="pdf-mini-val var-nula">—</p>
+                <p className="pdf-mini-nota">Autógrafo ainda não disponível</p>
+              </>
+            ) : (
+              <>
+                <p className="pdf-mini-val">
+                  R$ {autografo.valor}
+                  {autografo.unidade && <span className="pdf-mini-un">{autografo.unidade}</span>}
+                </p>
+                <p className="pdf-mini-nota">Autógrafo — fim do rito</p>
+              </>
+            )}
           </section>
           <section className="pdf-mini">
             <p className="pdf-mini-rot">Saldo do rito</p>
-            <p className={`pdf-mini-val ${deltaRito >= 0 ? 'var-sobe' : 'var-desce'}`}>
-              {deltaRito >= 0 ? '+' : '−'} R$ {compacto.valor}
-              {compacto.unidade && <span className="pdf-mini-un">{compacto.unidade}</span>}
-            </p>
-            <p className="pdf-mini-nota">
-              PL → Autógrafo = {pctRito === null ? '—' : fmtVar(pctRito)}
-            </p>
+            {semAut ? (
+              <>
+                <p className="pdf-mini-val var-nula">—</p>
+                <p className="pdf-mini-nota">PL → Autógrafo = —</p>
+              </>
+            ) : (
+              <>
+                <p className={`pdf-mini-val ${deltaRito >= 0 ? 'var-sobe' : 'var-desce'}`}>
+                  {deltaRito >= 0 ? '+' : '−'} R$ {compacto.valor}
+                  {compacto.unidade && <span className="pdf-mini-un">{compacto.unidade}</span>}
+                </p>
+                <p className="pdf-mini-nota">
+                  PL → Autógrafo = {pctRito === null ? '—' : fmtVar(pctRito)}
+                </p>
+              </>
+            )}
           </section>
           <section className="pdf-mini">
             <p className="pdf-mini-rot">Unidades orçamentárias</p>
@@ -132,19 +153,19 @@ export function FolhaDashboardPLOA({
         <div className="pdf-linha-2">
           <CardPDF
             titulo="Por Identificador de Resultado Primário"
-            sub="Composição do autógrafo por RP, em cascata"
-            total={fmtBi(totalAutografo)}
+            sub="Composição do PL por RP, em cascata"
+            total={fmtBi(totalPL)}
           >
             <GraficoCascata
-              dados={rps.map((d) => ({ chave: d.rp, rotulo: d.rotulo, valor: d.valor, cor: d.cor }))}
-              rotuloGrafico="Composição do autógrafo por RP, em cascata"
+              dados={rps.map((d) => ({ chave: d.rp, rotulo: d.rotulo, valor: d.pl, cor: d.cor }))}
+              rotuloGrafico="Composição do PL por RP, em cascata"
             />
           </CardPDF>
 
           <CardPDF
             titulo="Valor por Grupo de Natureza da Despesa"
-            sub="barra = autógrafo, traço = PL"
-            total={fmtBi(totalGND)}
+            sub="barra = PL, traço = autógrafo"
+            total={fmtBi(totalPL)}
           >
             <GraficoBarrasPLOA
               dados={gnds.map((g) => ({
@@ -152,6 +173,8 @@ export function FolhaDashboardPLOA({
                 valor: g.valor, pl: g.pl, cor: g.cor,
               }))}
               comparar
+              barra="pl"
+              semAutografo={semAut}
               mostrarPercentual
               rotuloGrafico="Valor por grupo de natureza da despesa, do PL ao autógrafo"
             />
@@ -161,7 +184,7 @@ export function FolhaDashboardPLOA({
         <CardPDF
           titulo="Valor por Unidade Orçamentária"
           sub="Todas as UO do órgão 52000 · barra = PL, traço = autógrafo"
-          total={fmtBi(totalUO)}
+          total={fmtBi(totalPL)}
         >
           <GraficoBarrasPLOA
             dados={uos.map((u) => ({
@@ -170,6 +193,7 @@ export function FolhaDashboardPLOA({
             }))}
             comparar
             barra="pl"
+            semAutografo={semAut}
             mostrarPercentual
             rotuloGrafico="Valor por unidade orçamentária, do PL ao autógrafo"
           />
@@ -181,7 +205,7 @@ export function FolhaDashboardPLOA({
         <CardPDF
           titulo="Valor por Ação orçamentária"
           sub={`${fmtInt(acoes.length)} ações do recorte · barra = PL, traço = autógrafo`}
-          total={fmtBi(totalAutografo)}
+          total={fmtBi(totalPL)}
           fluido
         >
           <GraficoBarrasPLOA
@@ -192,6 +216,7 @@ export function FolhaDashboardPLOA({
             }))}
             comparar
             barra="pl"
+            semAutografo={semAut}
             corNumero="var(--serie-laranja)"
             mostrarPercentual
             rotuloGrafico="Valor por ação orçamentária, do PL ao autógrafo"
@@ -216,7 +241,7 @@ export function FolhaDashboardPLOA({
         <CardPDF
           titulo="Do PL ao Autógrafo"
           sub="Saldo líquido do rito por Força · tom cheio = PL, tom claro = autógrafo"
-          total={`${deltaTodasForcas >= 0 ? '+' : '−'} ${fmtBi(Math.abs(deltaTodasForcas))}`}
+          total={semAut ? '—' : `${deltaTodasForcas >= 0 ? '+' : '−'} ${fmtBi(Math.abs(deltaTodasForcas))}`}
         >
           <GraficoColunasAno
             anos={catsForca}
@@ -231,7 +256,7 @@ export function FolhaDashboardPLOA({
         <CardPDF
           titulo="Evolução no ciclo de aprovação"
           sub={`Valor de cada Força em cada fase — ${FASE_ROTULOS.join(' · ')}`}
-          total={fmtBi(totalTodasForcas)}
+          total={fmtBi(semAut ? plTodasForcas : totalTodasForcas)}
         >
           <GraficoColunasAno
             anos={FASE_ROTULOS}
