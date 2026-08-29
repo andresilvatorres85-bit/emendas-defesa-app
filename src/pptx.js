@@ -1413,7 +1413,7 @@ function paineisHistoricoPLOA(d) {
     {
       id: 'hploa-forcas',
       titulo: 'Por Força, ao longo dos exercícios',
-      sub: 'Valor no autógrafo de cada Força em cada ano',
+      sub: 'Valor no PL de cada Força em cada ano',
       total: fmtBiTxt(d.forcasPorAno.series.reduce((s, x) => s + x.total, 0)),
       recorte: d.recorteForca,
       grafico: graficoBarras({
@@ -1430,7 +1430,7 @@ function paineisHistoricoPLOA(d) {
     {
       id: 'hploa-rp',
       titulo: 'Composição por RP',
-      sub: 'Participação de cada resultado primário no autógrafo de cada ano',
+      sub: 'Participação de cada resultado primário no PL de cada ano',
       total: fmtBiTxt(d.totalPeriodo),
       grafico: graficoBarras({
         cats: d.rpPorAno.anos,
@@ -1462,14 +1462,14 @@ function paineisHistoricoPLOA(d) {
     {
       id: 'hploa-uo',
       titulo: 'Unidades orçamentárias por exercício',
-      sub: `Valor no autógrafo · ${emBilhoes}`,
+      sub: `Valor no PL · ${emBilhoes}`,
       total: fmtBiTxt(d.uoPorAno.series.reduce((s, l) => s + l.total, 0)),
       tabela: matriz(d.uoPorAno.series, 'Unidade orçamentária'),
     },
     {
       id: 'hploa-acao',
       titulo: 'Ações orçamentárias por exercício',
-      sub: `Valor no autógrafo · ${emBilhoes}`,
+      sub: `Valor no PL · ${emBilhoes}`,
       total: fmtBiTxt(d.acaoPorAno.series.reduce((s, l) => s + l.total, 0)),
       tabela: matriz(d.acaoPorAno.series, 'Ação orçamentária'),
     },

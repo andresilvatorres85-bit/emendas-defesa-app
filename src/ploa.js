@@ -326,7 +326,10 @@ export function resumoPorAno(registros) {
 
 // Série genérica "categoria × ano", no formato que `MatrizAnos` consome.
 // `chave` extrai o identificador da categoria e `rotulo` o texto exibido.
-function serieCategoriaPorAno(registros, anos, chave, rotulo, fase = IDX_AUTOGRAFO, extra = null) {
+// A subaba Histórico PLOA consolida no PL (valor enviado pelo Executivo), então
+// o padrão é a fase PL — o único painel que compara PL × autógrafo passa a fase
+// explícita quando precisa do autógrafo.
+function serieCategoriaPorAno(registros, anos, chave, rotulo, fase = IDX_PL, extra = null) {
   const mapa = new Map()
   for (const r of registros) {
     const k = chave(r)
@@ -357,7 +360,7 @@ export function agregadoPorAno(registros) {
     const valores = anos.map((ano) =>
       registros
         .filter((r) => r.ano === ano && r.orgao === a.id)
-        .reduce((s, r) => s + valorAutografo(r), 0)
+        .reduce((s, r) => s + valorPL(r), 0)
     )
     return { ...a, chave: a.id, valores, total: valores.reduce((s, v) => s + v, 0) }
   }).filter((s) => s.total !== 0)

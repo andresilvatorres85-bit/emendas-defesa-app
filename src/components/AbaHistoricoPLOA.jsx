@@ -98,7 +98,7 @@ export default function AbaHistoricoPLOA({
         Comparativo dos {anos.length} exercícios presentes na planilha de elaboração
         ({anos.join(', ')}). Esta subaba <strong>ignora o filtro de Ano</strong> — é o que ela
         compara — mas respeita todos os demais filtros da barra acima. Os valores são os do
-        <strong> autógrafo</strong>, salvo onde o painel diz o contrário.
+        <strong> PL</strong> enviado pelo Executivo, salvo onde o painel diz o contrário.
       </p>
 
       {duplicados.length > 0 && (
@@ -170,7 +170,7 @@ export default function AbaHistoricoPLOA({
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Composição por GND</h2>
-              <p className="painel-sub">Participação de cada grupo de natureza da despesa no autógrafo</p>
+              <p className="painel-sub">Participação de cada grupo de natureza da despesa no PL</p>
             </div>
             <span className="painel-total">{fmtBi(totalPeriodo)}</span>
             <BotaoPPTX titulo="Composição por GND" onExportar={() => onExportarSlide('hploa-gnd')} />
@@ -193,7 +193,7 @@ export default function AbaHistoricoPLOA({
             <div className="painel-cab-txt">
               <h2>Unidades orçamentárias por exercício</h2>
               <p className="painel-sub">
-                {uos.series.length} UO · valor no autógrafo · valores em R$ bilhões
+                {uos.series.length} UO · valor no PL · valores em R$ bilhões
               </p>
             </div>
             <span className="painel-total">{fmtBi(uos.series.reduce((s, l) => s + l.total, 0))}</span>
@@ -215,7 +215,7 @@ export default function AbaHistoricoPLOA({
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Composição por RP</h2>
-              <p className="painel-sub">Participação de cada resultado primário no autógrafo de cada ano</p>
+              <p className="painel-sub">Participação de cada resultado primário no PL de cada ano</p>
             </div>
             <span className="painel-total">{fmtBi(totalPeriodo)}</span>
             <BotaoPPTX titulo="Composição por RP" onExportar={() => onExportarSlide('hploa-rp')} />
@@ -228,7 +228,7 @@ export default function AbaHistoricoPLOA({
             className="colunas-fina"
             formatar={fmtBi}
             formatarTotal={(_, i) => rps.anos[i]}
-            rotuloEixo="Participação de cada RP no autógrafo, por exercício"
+            rotuloEixo="Participação de cada RP no PL, por exercício"
           />
         </section>
 
@@ -307,7 +307,7 @@ export default function AbaHistoricoPLOA({
             <div className="painel-cab-txt">
               <h2>Ações orçamentárias por exercício</h2>
               <p className="painel-sub">
-                {fmtInt(acoes.total)} ações · valor no autógrafo · valores em R$ bilhões
+                {fmtInt(acoes.total)} ações · valor no PL · valores em R$ bilhões
               </p>
             </div>
             <span className="painel-total">{fmtBi(acoes.series.reduce((s, l) => s + l.total, 0))}</span>
@@ -330,7 +330,7 @@ export default function AbaHistoricoPLOA({
           <div className="painel-cab">
             <div className="painel-cab-txt">
               <h2>Por Força, ao longo dos exercícios</h2>
-              <p className="painel-sub">Valor no autógrafo de cada Força em cada ano</p>
+              <p className="painel-sub">Valor no PL de cada Força em cada ano</p>
             </div>
             <span className="painel-total">{fmtBi(forcas.series.reduce((s, x) => s + x.total, 0))}</span>
             <BotaoPPTX titulo="Por Força, ao longo dos exercícios" onExportar={() => onExportarSlide('hploa-forcas')} />

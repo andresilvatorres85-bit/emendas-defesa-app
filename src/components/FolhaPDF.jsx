@@ -321,7 +321,7 @@ export function FolhaHistoricoPLOA({
 
         <CardPDF
           titulo="Composição por GND"
-          sub="Participação de cada grupo de natureza da despesa no autógrafo"
+          sub="Participação de cada grupo de natureza da despesa no PL"
           total={fmtBi(totalPeriodo)}
         >
           <GraficoColunasAno
@@ -333,7 +333,7 @@ export function FolhaHistoricoPLOA({
 
         <CardPDF
           titulo="Unidades orçamentárias por exercício"
-          sub={`${uos.series.length} UO · valor no autógrafo · R$ bilhões`}
+          sub={`${uos.series.length} UO · valor no PL · R$ bilhões`}
           total={fmtBi(uos.series.reduce((s, l) => s + l.total, 0))}
         >
           <MatrizAnos
@@ -347,13 +347,13 @@ export function FolhaHistoricoPLOA({
       <div className="pdf-pagina pdf-pagina-nova">
         <CardPDF
           titulo="Composição por RP"
-          sub="Participação de cada resultado primário no autógrafo de cada ano"
+          sub="Participação de cada resultado primário no PL de cada ano"
           total={fmtBi(totalPeriodo)}
         >
           <GraficoColunasAno
             anos={rps.anos} series={rps.series} proporcao className="colunas-fina"
             formatar={fmtBi} formatarTotal={(_, i) => rps.anos[i]}
-            rotuloEixo="Participação de cada RP no autógrafo, por exercício"
+            rotuloEixo="Participação de cada RP no PL, por exercício"
           />
         </CardPDF>
 
@@ -389,7 +389,7 @@ export function FolhaHistoricoPLOA({
       <div className="pdf-pagina pdf-pagina-nova pdf-pagina-fluida">
         <CardPDF
           titulo="Ações orçamentárias por exercício"
-          sub={`${fmtInt(acoes.total)} ações · valor no autógrafo · R$ bilhões`}
+          sub={`${fmtInt(acoes.total)} ações · valor no PL · R$ bilhões`}
           total={fmtBi(acoes.series.reduce((s, l) => s + l.total, 0))}
           fluido
         >
@@ -404,7 +404,7 @@ export function FolhaHistoricoPLOA({
       <div className="pdf-pagina pdf-pagina-nova">
         <CardPDF
           titulo="Por Força, ao longo dos exercícios"
-          sub="Valor no autógrafo de cada Força em cada ano"
+          sub="Valor no PL de cada Força em cada ano"
           total={fmtBi(forcas.series.reduce((s, x) => s + x.total, 0))}
         >
           <GraficoColunasAno
